@@ -53,34 +53,10 @@
       border-radius: 3px;
       font-size: 12px;
     }
-    .actions {
-      margin-bottom: 24px;
-      display: flex;
-      gap: 8px;
-    }
-    button {
-      padding: 10px 24px;
-      font-size: 14px;
-      font-weight: 600;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-      transition: background 0.2s;
-    }
-    .btn-primary {
-      background: #444;
-      color: #fff;
-    }
-    .btn-primary:hover { background: #222; }
-    .btn-secondary {
-      background: #e0e0e0;
-      color: #333;
-    }
-    .btn-secondary:hover { background: #ccc; }
 
     hr { border: none; border-top: 1px solid #ddd; margin: 24px 0; }
 
-    /* === 表格樣式（與 template 一致） === */
+    /* === 表格樣式 === */
     #output { margin-top: 16px; }
     table {
       width: 100%;
@@ -141,31 +117,22 @@
 <body>
 
   <div class="nav"><a href="index.html">&larr; 回首頁</a></div>
-  <h1>排舞圖表產生器</h1>
-  <p class="subtitle">輸入動作序列，自動產生色彩表格</p>
+  <h1 id="page-title">排舞圖表產生器</h1>
+  <p class="subtitle" id="page-subtitle">輸入動作序列，自動產生色彩表格</p>
 
   <div class="input-area">
-    <textarea id="input" placeholder="每行輸入：拍數 + 動作名稱&#10;例如：&#10;6原地基本步&#10;6Sendout&#10;6Change Place&#10;6Call Back&#10;8Mini Dip&#10;&#10;用 --- 分隔不同 Phase">6原地基本步
-6Sendout
-6Change Place
-6Call Back
-8Mini Dip</textarea>
+    <textarea id="input" placeholder="每行輸入：拍數 + 動作名稱&#10;例如：&#10;Phase 1&#10;6 6 Count Basic&#10;6 Send Out&#10;&#10;Phase 2&#10;8 Swing Out&#10;8 Texas Tommy"></textarea>
     <div class="help">
       <strong>格式說明</strong><br><br>
       每行一個動作：<br>
       <code>拍數</code> + <code>動作名稱</code><br><br>
       例如：<br>
-      <code>6原地基本步</code><br>
-      <code>8Send Out</code><br>
-      <code>10Solo</code><br><br>
-      用 <code>---</code> 分隔 Phase<br><br>
+      <code>6 6 Count Basic</code><br>
+      <code>8 Send Out</code><br>
+      <code>10 Solo</code><br><br>
+      用 <code>Phase N</code> 或 <code>---</code><br>分隔不同 Phase<br><br>
       輸入後即時產生表格
     </div>
-  </div>
-
-  <div class="actions">
-    <button class="btn-secondary" onclick="copyHTML()">複製 HTML</button>
-    <button class="btn-secondary" onclick="clearInput()">清除</button>
   </div>
 
   <div id="output"></div>
@@ -173,8 +140,75 @@
   <script>
     const COLORS = ['c1','c2','c3','c4','c5','c6','c7','c8'];
 
+    const PRESETS = {
+      default: `Phase 1
+6 6 Count Basic
+6 Send Out
+6 Change Place
+6 Call Back
+8 Break
+
+Phase 2
+8 Swing Out
+8 Swing Out
+8 Texas Tommy
+8 Lindy Circle`,
+
+      'shim-sham': `Phase 1 — Stomp Off
+8 Stomp Off (R)
+8 Stomp Off (L)
+8 Stomp Off (R)
+8 Break
+
+Phase 2 — Cross Over
+8 Cross Over (R)
+8 Cross Over (L)
+8 Cross Over (R)
+8 Break
+
+Phase 3 — Tack Annie
+8 Tack Annie
+8 Tack Annie
+8 Tack Annie
+8 Break
+
+Phase 4 — Half Break
+8 Half Break
+8 Half Break
+8 Half Break
+8 Break`,
+
+      'big-apple': `Phase 1
+8 Praise Allah
+8 Spank the Baby
+8 Suzy Q
+8 Boogie Back
+
+Phase 2
+8 Scarecrow
+8 Shorty George
+8 Truckin'
+8 Pose`
+    };
+
+    const TITLES = {
+      'shim-sham': { title: 'Shim Sham', subtitle: '經典排舞 — Shim Sham' },
+      'big-apple': { title: 'Big Apple', subtitle: '經典排舞 — Big Apple' }
+    };
+
     const inputEl = document.getElementById('input');
     const outputEl = document.getElementById('output');
+
+    // Load preset from URL parameter
+    const params = new URLSearchParams(window.location.search);
+    const routine = params.get('routine');
+    inputEl.value = PRESETS[routine] || PRESETS['default'];
+
+    if (routine && TITLES[routine]) {
+      document.getElementById('page-title').textContent = TITLES[routine].title;
+      document.getElementById('page-subtitle').textContent = TITLES[routine].subtitle;
+      document.title = TITLES[routine].title + ' — 排舞圖表';
+    }
 
     inputEl.addEventListener('input', render);
     render();
@@ -182,26 +216,39 @@
     function parseMoves(text) {
       const phases = [];
       let current = [];
+      let phaseNames = [];
+      let currentName = null;
+
       for (const raw of text.split('\n')) {
         const line = raw.trim();
         if (!line) continue;
-        if (/^-{2,}$/.test(line)) {
-          if (current.length) phases.push(current);
+
+        // Phase separator: "Phase N" or "Phase N — description" or "---"
+        const phaseMatch = line.match(/^Phase\s*\d*\s*([\—\-—–]\s*(.+))?$/i);
+        if (phaseMatch || /^-{2,}$/.test(line)) {
+          if (current.length) {
+            phases.push(current);
+            phaseNames.push(currentName);
+          }
           current = [];
+          currentName = phaseMatch && phaseMatch[2] ? phaseMatch[2].trim() : null;
           continue;
         }
-        const m = line.match(/^(\d+)\s*(.+)$/);
+
+        const m = line.match(/^(\d+)\s+(.+)$/);
         if (m) {
           current.push({ count: parseInt(m[1]), name: m[2].trim() });
         }
       }
-      if (current.length) phases.push(current);
-      return phases;
+      if (current.length) {
+        phases.push(current);
+        phaseNames.push(currentName);
+      }
+      return { phases, phaseNames };
     }
 
     function buildTable(moves, eightCountOffset) {
-      // lay out moves on a beat timeline
-      const segments = []; // {start, end, name, colorIdx}
+      const segments = [];
       let beat = 0;
       moves.forEach((mv, i) => {
         segments.push({
@@ -215,7 +262,6 @@
       const totalBeats = beat;
       const totalEights = Math.ceil(totalBeats / 8);
 
-      // build rows
       let html = '<table><colgroup><col style="width:50px"><col span="8"></colgroup>';
       html += '<thead><tr><th>8拍</th>';
       for (let c = 1; c <= 8; c++) html += `<th>${c}</th>`;
@@ -228,7 +274,6 @@
 
         let col = rowStart;
         while (col < rowEnd) {
-          // find which segment owns this beat
           const seg = segments.find(s => s.start <= col && col < s.end);
           if (!seg) {
             html += '<td></td>';
@@ -236,12 +281,10 @@
             continue;
           }
 
-          // how many beats of this segment fit in this row
           const segEndInRow = Math.min(seg.end, rowEnd);
           const colspan = segEndInRow - col;
           const cls = COLORS[seg.colorIdx];
 
-          // determine label
           let label = '';
           const startsHere = seg.start === col;
           const endsHere = seg.end <= rowEnd;
@@ -278,19 +321,21 @@
     }
 
     function render() {
-      const phases = parseMoves(inputEl.value);
+      const { phases, phaseNames } = parseMoves(inputEl.value);
       if (!phases.length) {
         outputEl.innerHTML = '';
         return;
       }
 
-      let html = '';
       let tableHtml = '';
       let seqHtml = '';
       let offset = 0;
 
       phases.forEach((moves, pi) => {
-        const phaseLabel = phases.length > 1 ? `Phase ${pi + 1}` : 'Phase';
+        const name = phaseNames[pi];
+        const phaseLabel = name
+          ? `Phase ${pi + 1} — ${name}`
+          : (phases.length > 1 ? `Phase ${pi + 1}` : 'Phase');
         tableHtml += `<h2>${phaseLabel}</h2>`;
         const result = buildTable(moves, offset);
         tableHtml += result.html;
@@ -300,25 +345,12 @@
         seqHtml += buildSequence(moves);
       });
 
-      html += tableHtml;
+      let html = tableHtml;
       html += '<p class="note">同色 = 同一個動作 ｜ ↓ = 動作跨越 8 拍邊界延續</p>';
       html += '<hr>';
       html += seqHtml;
 
       outputEl.innerHTML = html;
-    }
-
-    function copyHTML() {
-      const html = outputEl.innerHTML;
-      if (!html) return;
-      navigator.clipboard.writeText(html).then(() => {
-        alert('已複製 HTML！');
-      });
-    }
-
-    function clearInput() {
-      inputEl.value = '';
-      render();
     }
   </script>
 

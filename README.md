@@ -5,9 +5,10 @@
 ## 功能
 
 - 輸入每個動作的拍數與名稱，即時產生 8 拍為一列的色彩表格
-- 用 `---` 分隔不同 Phase，支援多段落舞步
+- 用 `Phase N` 或 `---` 分隔不同 Phase，支援多段落舞步
+- Phase 可加描述：`Phase 1 — Stomp Off`
 - 同色代表同一個動作，箭頭 `↓` 表示動作跨越 8 拍邊界延續
-- 一鍵複製產生的 HTML，方便貼到筆記或網頁中
+- 內建經典排舞預設：Shim Sham、Big Apple
 
 ## 使用方式
 
@@ -17,26 +18,23 @@
 
 ### 本地使用
 
-直接用瀏覽器開啟 `generator.html` 即可，不需要任何伺服器或安裝。
+直接用瀏覽器開啟 `index.html` 即可，不需要任何伺服器或安裝。
 
 ## 輸入格式
 
-每行一個動作，格式為 `拍數` + `動作名稱`：
+每行一個動作，格式為 `拍數` + `動作名稱`，用 `Phase N` 分隔段落：
 
 ```
-6原地基本步
-6Sendout
-6Change Place
-6Call Back
-8Mini Dip
-```
+Phase 1
+6 6 Count Basic
+6 Send Out
+6 Change Place
+6 Call Back
+8 Break
 
-用 `---` 分隔不同 Phase：
-
-```
-6原地基本步
-6Sendout
----
-8Solo Turn
-6Side Pass
+Phase 2
+8 Swing Out
+8 Swing Out
+8 Texas Tommy
+8 Lindy Circle
 ```
