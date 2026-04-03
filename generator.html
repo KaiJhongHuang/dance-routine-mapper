@@ -112,6 +112,15 @@
       margin-right: 8px;
       font-weight: bold;
     }
+
+    .footer {
+      margin-top: 48px;
+      padding-top: 16px;
+      border-top: 1px solid #eee;
+      font-size: 12px;
+      color: #bbb;
+      text-align: center;
+    }
   </style>
 </head>
 <body>
@@ -121,7 +130,7 @@
   <p class="subtitle" id="page-subtitle">輸入動作序列，自動產生色彩表格</p>
 
   <div class="input-area">
-    <textarea id="input" placeholder="每行輸入：拍數 + 動作名稱&#10;例如：&#10;Phase 1&#10;6 6 Count Basic&#10;6 Send Out&#10;&#10;Phase 2&#10;8 Swing Out&#10;8 Texas Tommy"></textarea>
+    <textarea id="input" placeholder="每行輸入：拍數 + 動作名稱&#10;例如：&#10;T 第一段&#10;6 6 Count Basic&#10;6 Send Out&#10;&#10;T 第二段&#10;8 Swing Out&#10;8 Texas Tommy"></textarea>
     <div class="help">
       <strong>格式說明</strong><br><br>
       每行一個動作：<br>
@@ -130,61 +139,63 @@
       <code>6 6 Count Basic</code><br>
       <code>8 Send Out</code><br>
       <code>10 Solo</code><br><br>
-      用 <code>Phase N</code> 或 <code>---</code><br>分隔不同 Phase<br><br>
+      用 <code>T 段落名稱</code> 或 <code>---</code><br>分隔不同段落<br><br>
       輸入後即時產生表格
     </div>
   </div>
 
   <div id="output"></div>
 
+  <div class="footer">v0.9 — Kai, built with Claude Code</div>
+
   <script>
     const COLORS = ['c1','c2','c3','c4','c5','c6','c7','c8'];
 
     const PRESETS = {
-      default: `Phase 1
+      default: `T 第一段
 6 6 Count Basic
 6 Send Out
 6 Change Place
 6 Call Back
 8 Break
 
-Phase 2
+T 第二段
 8 Swing Out
 8 Swing Out
 8 Texas Tommy
 8 Lindy Circle`,
 
-      'shim-sham': `Phase 1 — Stomp Off
+      'shim-sham': `T Stomp Off
 8 Stomp Off (R)
 8 Stomp Off (L)
 8 Stomp Off (R)
 8 Break
 
-Phase 2 — Cross Over
+T Cross Over
 8 Cross Over (R)
 8 Cross Over (L)
 8 Cross Over (R)
 8 Break
 
-Phase 3 — Tack Annie
+T Tack Annie
 8 Tack Annie
 8 Tack Annie
 8 Tack Annie
 8 Break
 
-Phase 4 — Half Break
+T Half Break
 8 Half Break
 8 Half Break
 8 Half Break
 8 Break`,
 
-      'big-apple': `Phase 1
+      'big-apple': `T Part 1
 8 Praise Allah
 8 Spank the Baby
 8 Suzy Q
 8 Boogie Back
 
-Phase 2
+T Part 2
 8 Scarecrow
 8 Shorty George
 8 Truckin'
@@ -223,15 +234,15 @@ Phase 2
         const line = raw.trim();
         if (!line) continue;
 
-        // Phase separator: "Phase N" or "Phase N — description" or "---"
-        const phaseMatch = line.match(/^Phase\s*\d*\s*([\—\-—–]\s*(.+))?$/i);
-        if (phaseMatch || /^-{2,}$/.test(line)) {
+        // Section separator: "T name" or "T" alone or "---"
+        const sectionMatch = line.match(/^T(?:\s+(.+))?$/);
+        if (sectionMatch || /^-{2,}$/.test(line)) {
           if (current.length) {
             phases.push(current);
             phaseNames.push(currentName);
           }
           current = [];
-          currentName = phaseMatch && phaseMatch[2] ? phaseMatch[2].trim() : null;
+          currentName = sectionMatch && sectionMatch[1] ? sectionMatch[1].trim() : null;
           continue;
         }
 
@@ -333,15 +344,27 @@ Phase 2
 
       phases.forEach((moves, pi) => {
         const name = phaseNames[pi];
-        const phaseLabel = name
-          ? `Phase ${pi + 1} — ${name}`
-          : (phases.length > 1 ? `Phase ${pi + 1}` : 'Phase');
-        tableHtml += `<h2>${phaseLabel}</h2>`;
+        let phaseLabel;
+        if (name) {
+          phaseLabel = name;
+        } else if (phases.length > 1) {
+          phaseLabel = `Part ${pi + 1}`;
+        } else {
+          phaseLabel = '';
+        }
+
+        if (phaseLabel) {
+          tableHtml += `<h2>${phaseLabel}</h2>`;
+        }
         const result = buildTable(moves, offset);
         tableHtml += result.html;
         offset += result.totalEights;
 
-        seqHtml += `<h2>${phaseLabel} 動作順序</h2>`;
+        if (phaseLabel) {
+          seqHtml += `<h2>${phaseLabel} 動作順序</h2>`;
+        } else {
+          seqHtml += `<h2>動作順序</h2>`;
+        }
         seqHtml += buildSequence(moves);
       });
 
