@@ -88,6 +88,47 @@
     .c6 { background: #ffedd5; font-weight: 600; }
     .c7 { background: #ccfbf1; font-weight: 600; }
     .c8 { background: #fee2e2; font-weight: 600; }
+    /* Sub-step styles in table */
+    td.has-sub { padding: 6px 4px; }
+    td.has-sub .main-name { font-size: 10px; opacity: 0.65; margin-bottom: 2px; }
+    td.has-sub .sub-name { font-size: 13px; }
+
+    /* Lighter color variants for sub-step cells */
+    .c1.has-sub { background: #ebf2fe; }
+    .c2.has-sub { background: #fef8e0; }
+    .c3.has-sub { background: #e4fcf0; }
+    .c4.has-sub { background: #fdf0f7; }
+    .c5.has-sub { background: #f2e8ff; }
+    .c6.has-sub { background: #fff4e6; }
+    .c7.has-sub { background: #e0fdf8; }
+    .c8.has-sub { background: #fff0f0; }
+
+    /* Sub-step in sequence list */
+    .seq-substeps {
+      margin-left: 40px;
+      font-size: 12px;
+      opacity: 0.7;
+    }
+    .seq-substeps .sub-count {
+      font-size: 11px;
+      padding: 0 4px;
+    }
+
+    /* Toggle button */
+    .toggle-detail {
+      display: inline-block;
+      padding: 6px 16px;
+      font-size: 13px;
+      border: 2px solid #ccc;
+      border-radius: 6px;
+      background: #fff;
+      color: #666;
+      cursor: pointer;
+      margin-bottom: 12px;
+    }
+    .toggle-detail:hover { border-color: #999; color: #333; }
+    .toggle-detail.active { background: #444; color: #fff; border-color: #444; }
+
     .note {
       color: #888;
       font-size: 14px;
@@ -140,10 +181,14 @@
       <code>8 Send Out</code><br>
       <code>10 Solo</code><br><br>
       用 <code>T 段落名稱</code> 或 <code>---</code><br>分隔不同段落<br><br>
+      子步法（縮排）：<br>
+      <code>&nbsp;&nbsp;2 Rock Step</code><br>
+      <code>&nbsp;&nbsp;2 Triple Step</code><br><br>
       輸入後即時產生表格
     </div>
   </div>
 
+  <button id="toggleDetail" class="toggle-detail" onclick="toggleDetailView()">顯示細節</button>
   <div id="output"></div>
 
   <div class="footer">v1.0 — Kai, built with Claude Code</div>
@@ -151,19 +196,49 @@
   <script>
     const COLORS = ['c1','c2','c3','c4','c5','c6','c7','c8'];
 
+    let showDetail = false;
+
     const PRESETS = {
       default: `T 第一段
 6 6 Count Basic
+  2 Rock Step
+  2 Triple Step
+  2 Triple Step
 6 Send Out
+  2 Rock Step
+  2 Triple Step
+  2 Triple Step
 6 Change Place
+  2 Rock Step
+  2 Triple Step
+  2 Triple Step
 6 Call Back
+  2 Rock Step
+  2 Triple Step
+  2 Triple Step
 8 Break
 
 T 第二段
 8 Swing Out
+  2 Rock Step
+  2 Triple Step
+  2 Step Step
+  2 Triple Step
 8 Swing Out
+  2 Rock Step
+  2 Triple Step
+  2 Step Step
+  2 Triple Step
 8 Texas Tommy
-8 Lindy Circle`,
+  2 Rock Step
+  2 Triple Step
+  2 Step Step
+  2 Triple Step
+8 Lindy Circle
+  2 Rock Step
+  2 Triple Step
+  2 Step Step
+  2 Triple Step`,
 
       'shim-sham': `T Stomp Off
 8 Stomp Off (R)
@@ -221,6 +296,14 @@ T Part 2
       document.title = TITLES[routine].title + ' — 排舞圖表';
     }
 
+    function toggleDetailView() {
+      showDetail = !showDetail;
+      const btn = document.getElementById('toggleDetail');
+      btn.classList.toggle('active', showDetail);
+      btn.textContent = showDetail ? '隱藏細節' : '顯示細節';
+      render();
+    }
+
     inputEl.addEventListener('input', render);
     render();
 
@@ -231,12 +314,12 @@ T Part 2
       let currentName = null;
 
       for (const raw of text.split('\n')) {
-        const line = raw.trim();
-        if (!line) continue;
+        const trimmed = raw.trim();
+        if (!trimmed) continue;
 
         // Section separator: "T name" or "T" alone or "---"
-        const sectionMatch = line.match(/^T(?:\s+(.+))?$/);
-        if (sectionMatch || /^-{2,}$/.test(line)) {
+        const sectionMatch = trimmed.match(/^T(?:\s+(.+))?$/);
+        if (sectionMatch || /^-{2,}$/.test(trimmed)) {
           if (current.length) {
             phases.push(current);
             phaseNames.push(currentName);
@@ -246,9 +329,18 @@ T Part 2
           continue;
         }
 
-        const m = line.match(/^(\d+)\s+(.+)$/);
+        // Check if line is indented (sub-step)
+        const isIndented = /^\s/.test(raw) && current.length > 0;
+        const m = trimmed.match(/^(\d+)\s+(.+)$/);
         if (m) {
-          current.push({ count: parseInt(m[1]), name: m[2].trim() });
+          if (isIndented) {
+            // Add as sub-step to the last move
+            const parent = current[current.length - 1];
+            if (!parent.subSteps) parent.subSteps = [];
+            parent.subSteps.push({ count: parseInt(m[1]), name: m[2].trim() });
+          } else {
+            current.push({ count: parseInt(m[1]), name: m[2].trim() });
+          }
         }
       }
       if (current.length) {
@@ -259,15 +351,33 @@ T Part 2
     }
 
     function buildTable(moves, eightCountOffset) {
+      // Build segments: if showDetail and move has subSteps, expand them
       const segments = [];
       let beat = 0;
       moves.forEach((mv, i) => {
-        segments.push({
-          start: beat,
-          end: beat + mv.count,
-          name: mv.name,
-          colorIdx: i % COLORS.length
-        });
+        const colorIdx = i % COLORS.length;
+        if (showDetail && mv.subSteps && mv.subSteps.length) {
+          let subBeat = beat;
+          mv.subSteps.forEach(sub => {
+            segments.push({
+              start: subBeat,
+              end: subBeat + sub.count,
+              name: mv.name,
+              subName: sub.name,
+              colorIdx: colorIdx,
+              isSubStep: true
+            });
+            subBeat += sub.count;
+          });
+        } else {
+          segments.push({
+            start: beat,
+            end: beat + mv.count,
+            name: mv.name,
+            colorIdx: colorIdx,
+            isSubStep: false
+          });
+        }
         beat += mv.count;
       });
       const totalBeats = beat;
@@ -312,7 +422,15 @@ T Part 2
             label = '↓ ' + seg.name + ' ↓';
           }
 
-          html += `<td class="${cls}" colspan="${colspan}">${label}</td>`;
+          if (seg.isSubStep && seg.subName) {
+            // Main name on top, sub-step name below in smaller lighter style
+            html += `<td class="${cls} has-sub" colspan="${colspan}">`;
+            html += `<div class="main-name">${label}</div>`;
+            html += `<div class="sub-name">${seg.subName}</div>`;
+            html += '</td>';
+          } else {
+            html += `<td class="${cls}" colspan="${colspan}">${label}</td>`;
+          }
           col += colspan;
         }
         html += '</tr>';
@@ -326,6 +444,13 @@ T Part 2
       moves.forEach((mv, i) => {
         if (i > 0) html += '<br>';
         html += `<span class="count">${mv.count}</span>${mv.name}`;
+        if (showDetail && mv.subSteps && mv.subSteps.length) {
+          html += '<div class="seq-substeps">';
+          mv.subSteps.forEach(sub => {
+            html += `<span class="count sub-count">${sub.count}</span>${sub.name}&nbsp;&nbsp;`;
+          });
+          html += '</div>';
+        }
       });
       html += '</div>';
       return html;
