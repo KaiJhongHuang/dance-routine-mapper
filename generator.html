@@ -88,20 +88,23 @@
     .c6 { background: #ffedd5; font-weight: 600; }
     .c7 { background: #ccfbf1; font-weight: 600; }
     .c8 { background: #fee2e2; font-weight: 600; }
-    /* Sub-step styles in table */
-    td.has-sub { padding: 6px 4px; }
-    td.has-sub .main-name { font-size: 10px; opacity: 0.65; margin-bottom: 2px; }
-    td.has-sub .sub-name { font-size: 13px; }
-
-    /* Lighter color variants for sub-step cells */
-    .c1.has-sub { background: #ebf2fe; }
-    .c2.has-sub { background: #fef8e0; }
-    .c3.has-sub { background: #e4fcf0; }
-    .c4.has-sub { background: #fdf0f7; }
-    .c5.has-sub { background: #f2e8ff; }
-    .c6.has-sub { background: #fff4e6; }
-    .c7.has-sub { background: #e0fdf8; }
-    .c8.has-sub { background: #fff0f0; }
+    /* Detail view: main row + sub-step row */
+    td.main-row { border-bottom: 1px solid rgba(0,0,0,0.08); padding: 8px 4px 4px; }
+    td.sub-row {
+      font-size: 10px;
+      font-weight: 400;
+      padding: 2px 4px 6px;
+      opacity: 0.7;
+    }
+    /* Lighter color variants for sub-step row */
+    .c1.sub-row { background: #ebf2fe; }
+    .c2.sub-row { background: #fef8e0; }
+    .c3.sub-row { background: #e4fcf0; }
+    .c4.sub-row { background: #fdf0f7; }
+    .c5.sub-row { background: #f2e8ff; }
+    .c6.sub-row { background: #fff4e6; }
+    .c7.sub-row { background: #e0fdf8; }
+    .c8.sub-row { background: #fff0f0; }
 
     /* Sub-step in sequence list */
     .seq-substeps {
@@ -351,37 +354,49 @@ T Part 2
     }
 
     function buildTable(moves, eightCountOffset) {
-      // Build segments: if showDetail and move has subSteps, expand them
+      // Build main segments (always based on full moves)
       const segments = [];
       let beat = 0;
       moves.forEach((mv, i) => {
-        const colorIdx = i % COLORS.length;
-        if (showDetail && mv.subSteps && mv.subSteps.length) {
-          let subBeat = beat;
-          mv.subSteps.forEach(sub => {
-            segments.push({
-              start: subBeat,
-              end: subBeat + sub.count,
-              name: mv.name,
-              subName: sub.name,
-              colorIdx: colorIdx,
-              isSubStep: true
-            });
-            subBeat += sub.count;
-          });
-        } else {
-          segments.push({
-            start: beat,
-            end: beat + mv.count,
-            name: mv.name,
-            colorIdx: colorIdx,
-            isSubStep: false
-          });
-        }
+        segments.push({
+          start: beat,
+          end: beat + mv.count,
+          name: mv.name,
+          colorIdx: i % COLORS.length,
+          subSteps: mv.subSteps || null
+        });
         beat += mv.count;
       });
       const totalBeats = beat;
       const totalEights = Math.ceil(totalBeats / 8);
+
+      // Build sub-step segments (for detail row)
+      const subSegments = [];
+      if (showDetail) {
+        let sBeat = 0;
+        moves.forEach((mv, i) => {
+          if (mv.subSteps && mv.subSteps.length) {
+            mv.subSteps.forEach(sub => {
+              subSegments.push({
+                start: sBeat,
+                end: sBeat + sub.count,
+                name: sub.name,
+                colorIdx: i % COLORS.length
+              });
+              sBeat += sub.count;
+            });
+          } else {
+            // No sub-steps: single empty segment to keep alignment
+            subSegments.push({
+              start: sBeat,
+              end: sBeat + mv.count,
+              name: null,
+              colorIdx: i % COLORS.length
+            });
+            sBeat += mv.count;
+          }
+        });
+      }
 
       let html = '<table><colgroup><col style="width:50px"><col span="8"></colgroup>';
       html += '<thead><tr><th>8拍</th>';
@@ -391,13 +406,21 @@ T Part 2
       for (let row = 0; row < totalEights; row++) {
         const rowStart = row * 8;
         const rowEnd = rowStart + 8;
-        html += `<tr><td class="label">${row + 1 + eightCountOffset}</td>`;
+
+        // Check if any segment in this row has sub-steps
+        const hasDetailRow = showDetail && segments.some(s =>
+          s.start < rowEnd && s.end > rowStart && s.subSteps && s.subSteps.length
+        );
+
+        // Main row
+        const rowspan = hasDetailRow ? 2 : 1;
+        html += `<tr><td class="label" rowspan="${rowspan}">${row + 1 + eightCountOffset}</td>`;
 
         let col = rowStart;
         while (col < rowEnd) {
           const seg = segments.find(s => s.start <= col && col < s.end);
           if (!seg) {
-            html += '<td></td>';
+            html += `<td${hasDetailRow ? ' class="main-row"' : ''}></td>`;
             col++;
             continue;
           }
@@ -422,18 +445,37 @@ T Part 2
             label = '↓ ' + seg.name + ' ↓';
           }
 
-          if (seg.isSubStep && seg.subName) {
-            // Main name on top, sub-step name below in smaller lighter style
-            html += `<td class="${cls} has-sub" colspan="${colspan}">`;
-            html += `<div class="main-name">${label}</div>`;
-            html += `<div class="sub-name">${seg.subName}</div>`;
-            html += '</td>';
-          } else {
-            html += `<td class="${cls}" colspan="${colspan}">${label}</td>`;
-          }
+          const extraCls = hasDetailRow ? ' main-row' : '';
+          html += `<td class="${cls}${extraCls}" colspan="${colspan}">${label}</td>`;
           col += colspan;
         }
         html += '</tr>';
+
+        // Detail row (sub-steps)
+        if (hasDetailRow) {
+          html += '<tr>';
+          let subCol = rowStart;
+          while (subCol < rowEnd) {
+            const sub = subSegments.find(s => s.start <= subCol && subCol < s.end);
+            if (!sub) {
+              html += '<td class="sub-row"></td>';
+              subCol++;
+              continue;
+            }
+
+            const subEndInRow = Math.min(sub.end, rowEnd);
+            const colspan = subEndInRow - subCol;
+            const cls = COLORS[sub.colorIdx];
+
+            if (sub.name) {
+              html += `<td class="${cls} sub-row" colspan="${colspan}">${sub.name}</td>`;
+            } else {
+              html += `<td class="${cls} sub-row" colspan="${colspan}"></td>`;
+            }
+            subCol += colspan;
+          }
+          html += '</tr>';
+        }
       }
       html += '</tbody></table>';
       return { html, totalEights };
