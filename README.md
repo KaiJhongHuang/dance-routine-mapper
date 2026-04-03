@@ -2,6 +2,8 @@
 
 排舞圖表產生器 — 輸入動作序列，自動產生色彩對照表格。
 
+**線上使用：** https://kaijhonghuang.github.io/dance-routine-mapper/
+
 ## 功能
 
 - 輸入每個動作的拍數與名稱，即時產生 8 拍為一列的色彩表格
@@ -9,16 +11,6 @@
 - Phase 可加描述：`Phase 1 — Stomp Off`
 - 同色代表同一個動作，箭頭 `↓` 表示動作跨越 8 拍邊界延續
 - 內建經典排舞預設：Shim Sham、Big Apple
-
-## 使用方式
-
-### 線上使用
-
-開啟 GitHub Pages：`https://kaijhonghuang.github.io/dance-routine-mapper/`
-
-### 本地使用
-
-直接用瀏覽器開啟 `index.html` 即可，不需要任何伺服器或安裝。
 
 ## 輸入格式
 
