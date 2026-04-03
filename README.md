@@ -7,26 +7,32 @@
 ## 功能
 
 - 輸入每個動作的拍數與名稱，即時產生 8 拍為一列的色彩表格
-- 用 `Phase N` 或 `---` 分隔不同 Phase，支援多段落舞步
-- Phase 可加描述：`Phase 1 — Stomp Off`
+- 用 `T` 標記段落標題，支援多段落舞步
 - 同色代表同一個動作，箭頭 `↓` 表示動作跨越 8 拍邊界延續
-- 內建經典排舞預設：Shim Sham、Big Apple
+- 內建經典排舞預設：Shim Sham、Big Apple（動作順序依據 1939 年 Keep Punching 影片版本）
 
 ## 輸入格式
 
-每行一個動作，格式為 `拍數` + `動作名稱`，用 `Phase N` 分隔段落：
+每行一個動作，格式為 `拍數` + `動作名稱`，用 `T` + `標題` 分隔段落：
 
 ```
-Phase 1
-6 6 Count Basic
-6 Send Out
-6 Change Place
-6 Call Back
-8 Break
-
-Phase 2
-8 Swing Out
+T Part 1
 8 Swing Out
 8 Texas Tommy
+6 Send Out
+6 Change Place
+
+T Part 2
 8 Lindy Circle
+8 Charleston
+8 Break
 ```
+
+## 版本紀錄
+
+### v1.0
+
+- 圖表產生器：輸入動作序列，即時產生 8 拍色彩對照表格
+- 支援多段落（`T` 標題分隔）與跨拍動作顯示（`↓` 箭頭）
+- 內建經典排舞預設：Shim Sham（4 段）、Big Apple（2 段）
+- Big Apple 動作順序已校正，依據 Frankie Manning 編舞的 Keep Punching (1939) 版本
