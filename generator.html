@@ -228,33 +228,37 @@
   <h1 id="page-title">排舞圖表產生器</h1>
   <p class="subtitle" id="page-subtitle">輸入動作序列，自動產生色彩表格</p>
 
-  <div class="help">
-    第一行為舞序名稱，<code>T 段落名稱</code> 分隔段落，每行 <code>拍數 動作名稱</code><br>
-    縮排行為子步法，點「顯示細節」展開
-  </div>
-  <div class="input-area">
-    <textarea id="input" placeholder="舞序名稱&#10;T 第一段&#10;6 6 Count Basic&#10;6 Send Out&#10;&#10;T 第二段&#10;8 Swing Out&#10;8 Texas Tommy"></textarea>
-  </div>
-
   <div class="toolbar">
     <button id="toggleDetail" onclick="toggleDetailView()">顯示細節</button>
     <button onclick="copyText()">複製</button>
     <button onclick="shareUrl()">分享</button>
     <button onclick="exportChart()">匯出圖片</button>
   </div>
+  <div id="output"></div>
+
+  <hr>
+  <div class="help">
+    第一行為舞序名稱，<code>T 段落名稱</code> 分隔段落，每行 <code>拍數 動作名稱</code><br>
+    縮排行為子步法，點「顯示細節」展開
+  </div>
   <div class="templates">
     <span class="tpl-label">插入：</span>
-    <button onclick="insertTemplate('6count')">6 Count Basic</button>
+    <button onclick="insertTemplate('2c')">2 Count</button>
+    <button onclick="insertTemplate('4c')">4 Count</button>
+    <button onclick="insertTemplate('6c')">6 Count</button>
+    <button onclick="insertTemplate('8c')">8 Count</button>
+    <button onclick="insertTemplate('section')">T 段落</button>
+  </div>
+  <div class="templates">
+    <span class="tpl-label">動作：</span>
     <button onclick="insertTemplate('sendout')">Send Out</button>
     <button onclick="insertTemplate('change')">Change Place</button>
     <button onclick="insertTemplate('callback')">Call Back</button>
     <button onclick="insertTemplate('swingout')">Swing Out</button>
-    <button onclick="insertTemplate('texastommy')">Texas Tommy</button>
-    <button onclick="insertTemplate('circle')">Lindy Circle</button>
-    <button onclick="insertTemplate('break')">Break</button>
-    <button onclick="insertTemplate('section')">T 段落</button>
   </div>
-  <div id="output"></div>
+  <div class="input-area">
+    <textarea id="input" placeholder="舞序名稱&#10;T 第一段&#10;6 6 Count Basic&#10;6 Send Out&#10;&#10;T 第二段&#10;8 Swing Out&#10;8 Texas Tommy"></textarea>
+  </div>
 
   <div class="footer">v1.1 — Kai, built with Claude Code</div>
 
@@ -465,14 +469,14 @@ T Part 2
 
     // === Quick Templates ===
     const TEMPLATES = {
-      '6count':     '6 6 Count Basic\n  2 Rock Step\n  2 Triple Step\n  2 Triple Step',
+      '2c':         '2 -',
+      '4c':         '4 -',
+      '6c':         '6 -',
+      '8c':         '8 -',
       'sendout':    '6 Send Out\n  2 Rock Step\n  2 Triple Step\n  2 Triple Step',
       'change':     '6 Change Place\n  2 Rock Step\n  2 Triple Step\n  2 Triple Step',
       'callback':   '6 Call Back\n  2 Rock Step\n  2 Triple Step\n  2 Triple Step',
       'swingout':   '8 Swing Out\n  2 Rock Step\n  2 Triple Step\n  2 Step Step\n  2 Triple Step',
-      'texastommy': '8 Texas Tommy\n  2 Rock Step\n  2 Triple Step\n  2 Step Step\n  2 Triple Step',
-      'circle':     '8 Lindy Circle\n  2 Rock Step\n  2 Triple Step\n  2 Step Step\n  2 Triple Step',
-      'break':      '8 Break',
       'section':    '\nT 新段落',
     };
 
@@ -863,7 +867,6 @@ T Part 2
       });
 
       let html = `<div id="chart-area">${tableHtml}<p class="note">同色 = 同一個動作 ｜ ↓ = 動作跨越 8 拍邊界延續</p></div>`;
-      html += '<hr>';
       html += seqHtml;
 
       outputEl.innerHTML = html;
