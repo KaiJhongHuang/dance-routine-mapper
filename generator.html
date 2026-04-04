@@ -257,12 +257,14 @@
   </div>
   <div class="templates">
     <span class="tpl-label">插入：</span>
-    <button onclick="insertTemplate('2c')">2 Count</button>
-    <button onclick="insertTemplate('4c')">4 Count</button>
-    <button onclick="insertTemplate('6c')">6 Count</button>
-    <button onclick="insertTemplate('8c')">8 Count</button>
+    <button onclick="insertTemplate('section')">標題</button>
+    <button onclick="insertTemplate('2c')">2 拍</button>
+    <button onclick="insertTemplate('4c')">4 拍</button>
+    <button onclick="insertTemplate('6c')">6 拍</button>
+    <button onclick="insertTemplate('8c')">8 拍</button>
     <button onclick="insertTemplate('sub')">2 拍子步法</button>
-    <button onclick="insertTemplate('section')">T 段落</button>
+    <button onclick="insertNewline()">換行</button>
+    <button onclick="deleteLine()">刪行</button>
   </div>
   <div class="templates">
     <span class="tpl-label">動作：</span>
@@ -513,8 +515,39 @@ T Part 2
       render();
     }
 
-    // === Drag and Drop ===
+    function insertNewline() {
+      const pos = inputEl.selectionStart;
+      const before = inputEl.value.slice(0, pos);
+      const after = inputEl.value.slice(pos);
+      inputEl.value = before + '\n' + after;
+      inputEl.focus();
+      inputEl.setSelectionRange(pos + 1, pos + 1);
+      render();
+    }
+
+    function deleteLine() {
+      const pos = inputEl.selectionStart;
+      const text = inputEl.value;
+      const lineStart = text.lastIndexOf('\n', pos - 1) + 1;
+      let lineEnd = text.indexOf('\n', pos);
+      if (lineEnd === -1) lineEnd = text.length;
+      inputEl.value = text.slice(0, lineStart) + text.slice(lineEnd + 1);
+      inputEl.focus();
+      inputEl.setSelectionRange(lineStart, lineStart);
+      render();
+    }
+
+    // === Drag and Drop (cross-phase) ===
     let dragPhase = null, dragIndex = null;
+
+    function moveItem(fromPhase, fromIndex, toPhase, toIndex) {
+      const parsed = parseMoves(inputEl.value);
+      const [moved] = parsed.phases[fromPhase].splice(fromIndex, 1);
+      parsed.phases[toPhase].splice(toIndex, 0, moved);
+      // Remove empty phases (but keep phase name/structure)
+      inputEl.value = generateText(parsed);
+      render();
+    }
 
     function onDragStart(e) {
       const item = e.target.closest('.seq-item');
@@ -529,8 +562,6 @@ T Part 2
       e.preventDefault();
       const item = e.target.closest('.seq-item');
       if (!item) return;
-      // Only allow drop within the same phase
-      if (parseInt(item.dataset.phase) !== dragPhase) return;
       e.dataTransfer.dropEffect = 'move';
       document.querySelectorAll('.seq-item.drag-over').forEach(el => el.classList.remove('drag-over'));
       item.classList.add('drag-over');
@@ -550,18 +581,12 @@ T Part 2
       if (!item) return;
       const dropPhase = parseInt(item.dataset.phase);
       const dropIndex = parseInt(item.dataset.index);
-      if (dragPhase === null || dropPhase !== dragPhase || dragIndex === dropIndex) {
+      if (dragPhase === null || (dropPhase === dragPhase && dragIndex === dropIndex)) {
         onDragEnd(e);
         return;
       }
-      // Reorder: parse, swap, regenerate text
-      const parsed = parseMoves(inputEl.value);
-      const phase = parsed.phases[dragPhase];
-      const [moved] = phase.splice(dragIndex, 1);
-      phase.splice(dropIndex, 0, moved);
-      inputEl.value = generateText(parsed);
+      moveItem(dragPhase, dragIndex, dropPhase, dropIndex);
       onDragEnd(e);
-      render();
     }
 
     // Reconstruct textarea text from parsed data
@@ -613,7 +638,7 @@ T Part 2
       const el = document.elementFromPoint(e.touches[0].clientX, y);
       if (el) {
         const over = el.closest('.seq-item');
-        if (over && parseInt(over.dataset.phase) === dragPhase) over.classList.add('drag-over');
+        if (over) over.classList.add('drag-over');
       }
     }
 
@@ -621,19 +646,15 @@ T Part 2
       if (!touchItem) return;
       const overEl = document.querySelector('.seq-item.drag-over');
       if (overEl) {
+        const dropPhase = parseInt(overEl.dataset.phase);
         const dropIndex = parseInt(overEl.dataset.index);
-        if (dragIndex !== dropIndex) {
-          const parsed = parseMoves(inputEl.value);
-          const phase = parsed.phases[dragPhase];
-          const [moved] = phase.splice(dragIndex, 1);
-          phase.splice(dropIndex, 0, moved);
-          inputEl.value = generateText(parsed);
+        if (dragPhase !== dropPhase || dragIndex !== dropIndex) {
+          moveItem(dragPhase, dragIndex, dropPhase, dropIndex);
         }
       }
       if (touchClone) { touchClone.remove(); touchClone = null; }
       document.querySelectorAll('.seq-item.dragging, .seq-item.drag-over').forEach(el => el.classList.remove('dragging', 'drag-over'));
       touchItem = null; dragPhase = null; dragIndex = null;
-      render();
     }
 
     document.addEventListener('touchmove', onTouchMove, { passive: false });
