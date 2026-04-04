@@ -165,6 +165,53 @@
       font-weight: bold;
     }
 
+    /* Drag and drop */
+    .seq-item {
+      padding: 4px 8px;
+      border-radius: 4px;
+      cursor: grab;
+      transition: background 0.15s;
+      display: flex;
+      align-items: baseline;
+      gap: 4px;
+    }
+    .seq-item:hover { background: rgba(0,0,0,0.04); }
+    .seq-item.dragging { opacity: 0.3; }
+    .seq-item.drag-over { box-shadow: 0 -2px 0 #666; }
+    .seq-item .drag-handle {
+      color: #ccc;
+      font-size: 12px;
+      cursor: grab;
+      user-select: none;
+      flex-shrink: 0;
+    }
+    .seq-item .drag-handle:hover { color: #999; }
+    .seq-item .seq-content { flex: 1; }
+
+    /* Templates */
+    .templates {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+    .templates button {
+      padding: 4px 10px;
+      font-size: 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      background: #fafafa;
+      color: #666;
+      cursor: pointer;
+    }
+    .templates button:hover { background: #f0f0f0; border-color: #bbb; }
+    .tpl-label {
+      font-size: 12px;
+      color: #999;
+      margin-right: 4px;
+      align-self: center;
+    }
+
     .footer {
       margin-top: 48px;
       padding-top: 16px;
@@ -194,6 +241,18 @@
     <button onclick="copyText()">複製</button>
     <button onclick="shareUrl()">分享</button>
     <button onclick="exportChart()">匯出圖片</button>
+  </div>
+  <div class="templates">
+    <span class="tpl-label">插入：</span>
+    <button onclick="insertTemplate('6count')">6 Count Basic</button>
+    <button onclick="insertTemplate('sendout')">Send Out</button>
+    <button onclick="insertTemplate('change')">Change Place</button>
+    <button onclick="insertTemplate('callback')">Call Back</button>
+    <button onclick="insertTemplate('swingout')">Swing Out</button>
+    <button onclick="insertTemplate('texastommy')">Texas Tommy</button>
+    <button onclick="insertTemplate('circle')">Lindy Circle</button>
+    <button onclick="insertTemplate('break')">Break</button>
+    <button onclick="insertTemplate('section')">T 段落</button>
   </div>
   <div id="output"></div>
 
@@ -404,6 +463,159 @@ T Part 2
       }, 'image/png');
     }
 
+    // === Quick Templates ===
+    const TEMPLATES = {
+      '6count':     '6 6 Count Basic\n  2 Rock Step\n  2 Triple Step\n  2 Triple Step',
+      'sendout':    '6 Send Out\n  2 Rock Step\n  2 Triple Step\n  2 Triple Step',
+      'change':     '6 Change Place\n  2 Rock Step\n  2 Triple Step\n  2 Triple Step',
+      'callback':   '6 Call Back\n  2 Rock Step\n  2 Triple Step\n  2 Triple Step',
+      'swingout':   '8 Swing Out\n  2 Rock Step\n  2 Triple Step\n  2 Step Step\n  2 Triple Step',
+      'texastommy': '8 Texas Tommy\n  2 Rock Step\n  2 Triple Step\n  2 Step Step\n  2 Triple Step',
+      'circle':     '8 Lindy Circle\n  2 Rock Step\n  2 Triple Step\n  2 Step Step\n  2 Triple Step',
+      'break':      '8 Break',
+      'section':    '\nT 新段落',
+    };
+
+    function insertTemplate(key) {
+      const tpl = TEMPLATES[key];
+      if (!tpl) return;
+      const pos = inputEl.selectionStart;
+      const before = inputEl.value.slice(0, pos);
+      const after = inputEl.value.slice(pos);
+      const needNewline = before.length > 0 && !before.endsWith('\n') ? '\n' : '';
+      inputEl.value = before + needNewline + tpl + '\n' + after;
+      inputEl.focus();
+      const newPos = (before + needNewline + tpl + '\n').length;
+      inputEl.setSelectionRange(newPos, newPos);
+      render();
+    }
+
+    // === Drag and Drop ===
+    let dragPhase = null, dragIndex = null;
+
+    function onDragStart(e) {
+      const item = e.target.closest('.seq-item');
+      if (!item) return;
+      dragPhase = parseInt(item.dataset.phase);
+      dragIndex = parseInt(item.dataset.index);
+      item.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    }
+
+    function onDragOver(e) {
+      e.preventDefault();
+      const item = e.target.closest('.seq-item');
+      if (!item) return;
+      // Only allow drop within the same phase
+      if (parseInt(item.dataset.phase) !== dragPhase) return;
+      e.dataTransfer.dropEffect = 'move';
+      document.querySelectorAll('.seq-item.drag-over').forEach(el => el.classList.remove('drag-over'));
+      item.classList.add('drag-over');
+    }
+
+    function onDragEnd(e) {
+      document.querySelectorAll('.seq-item.dragging, .seq-item.drag-over').forEach(el => {
+        el.classList.remove('dragging', 'drag-over');
+      });
+      dragPhase = null;
+      dragIndex = null;
+    }
+
+    function onDrop(e) {
+      e.preventDefault();
+      const item = e.target.closest('.seq-item');
+      if (!item) return;
+      const dropPhase = parseInt(item.dataset.phase);
+      const dropIndex = parseInt(item.dataset.index);
+      if (dragPhase === null || dropPhase !== dragPhase || dragIndex === dropIndex) {
+        onDragEnd(e);
+        return;
+      }
+      // Reorder: parse, swap, regenerate text
+      const parsed = parseMoves(inputEl.value);
+      const phase = parsed.phases[dragPhase];
+      const [moved] = phase.splice(dragIndex, 1);
+      phase.splice(dropIndex, 0, moved);
+      inputEl.value = generateText(parsed);
+      onDragEnd(e);
+      render();
+    }
+
+    // Reconstruct textarea text from parsed data
+    function generateText(parsed) {
+      const lines = [];
+      if (parsed.routineName) lines.push(parsed.routineName);
+      parsed.phases.forEach((moves, pi) => {
+        const name = parsed.phaseNames[pi];
+        if (name) {
+          lines.push('T ' + name);
+        } else if (pi > 0 || parsed.phases.length > 1) {
+          lines.push('T');
+        }
+        moves.forEach(mv => {
+          lines.push(mv.count + ' ' + mv.name);
+          if (mv.subSteps) {
+            mv.subSteps.forEach(sub => {
+              lines.push('  ' + sub.count + ' ' + sub.name);
+            });
+          }
+        });
+        if (pi < parsed.phases.length - 1) lines.push('');
+      });
+      return lines.join('\n');
+    }
+
+    // Touch drag support for mobile
+    let touchItem = null, touchClone = null, touchStartY = 0;
+
+    function onTouchStart(e) {
+      const item = e.target.closest('.seq-item');
+      if (!item || !e.target.closest('.drag-handle')) return;
+      touchItem = item;
+      dragPhase = parseInt(item.dataset.phase);
+      dragIndex = parseInt(item.dataset.index);
+      touchStartY = e.touches[0].clientY;
+      touchClone = item.cloneNode(true);
+      touchClone.style.cssText = 'position:fixed;pointer-events:none;opacity:0.7;z-index:999;width:' + item.offsetWidth + 'px;left:' + item.getBoundingClientRect().left + 'px;';
+      document.body.appendChild(touchClone);
+      item.classList.add('dragging');
+    }
+
+    function onTouchMove(e) {
+      if (!touchItem) return;
+      e.preventDefault();
+      const y = e.touches[0].clientY;
+      touchClone.style.top = y - 16 + 'px';
+      document.querySelectorAll('.seq-item.drag-over').forEach(el => el.classList.remove('drag-over'));
+      const el = document.elementFromPoint(e.touches[0].clientX, y);
+      if (el) {
+        const over = el.closest('.seq-item');
+        if (over && parseInt(over.dataset.phase) === dragPhase) over.classList.add('drag-over');
+      }
+    }
+
+    function onTouchEnd(e) {
+      if (!touchItem) return;
+      const overEl = document.querySelector('.seq-item.drag-over');
+      if (overEl) {
+        const dropIndex = parseInt(overEl.dataset.index);
+        if (dragIndex !== dropIndex) {
+          const parsed = parseMoves(inputEl.value);
+          const phase = parsed.phases[dragPhase];
+          const [moved] = phase.splice(dragIndex, 1);
+          phase.splice(dropIndex, 0, moved);
+          inputEl.value = generateText(parsed);
+        }
+      }
+      if (touchClone) { touchClone.remove(); touchClone = null; }
+      document.querySelectorAll('.seq-item.dragging, .seq-item.drag-over').forEach(el => el.classList.remove('dragging', 'drag-over'));
+      touchItem = null; dragPhase = null; dragIndex = null;
+      render();
+    }
+
+    document.addEventListener('touchmove', onTouchMove, { passive: false });
+    document.addEventListener('touchend', onTouchEnd);
+
     inputEl.addEventListener('input', render);
 
     function parseMoves(text) {
@@ -590,10 +802,12 @@ T Part 2
       return { html, totalEights };
     }
 
-    function buildSequence(moves) {
+    function buildSequence(moves, phaseIdx) {
       let html = '<div class="sequence">';
       moves.forEach((mv, i) => {
-        if (i > 0) html += '<br>';
+        html += `<div class="seq-item" draggable="true" data-phase="${phaseIdx}" data-index="${i}" ondragstart="onDragStart(event)" ondragover="onDragOver(event)" ondrop="onDrop(event)" ondragend="onDragEnd(event)" ontouchstart="onTouchStart(event)">`;
+        html += '<span class="drag-handle">☰</span>';
+        html += '<span class="seq-content">';
         html += `<span class="count">${mv.count}</span>${mv.name}`;
         if (showDetail && mv.subSteps && mv.subSteps.length) {
           html += '<div class="seq-substeps">';
@@ -602,6 +816,7 @@ T Part 2
           });
           html += '</div>';
         }
+        html += '</span></div>';
       });
       html += '</div>';
       return html;
@@ -644,7 +859,7 @@ T Part 2
         } else {
           seqHtml += `<h2>動作順序</h2>`;
         }
-        seqHtml += buildSequence(moves);
+        seqHtml += buildSequence(moves, pi);
       });
 
       let html = `<div id="chart-area">${tableHtml}<p class="note">同色 = 同一個動作 ｜ ↓ = 動作跨越 8 拍邊界延續</p></div>`;
