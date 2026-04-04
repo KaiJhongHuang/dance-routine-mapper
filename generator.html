@@ -227,6 +227,33 @@
       align-self: center;
     }
 
+    /* Timing */
+    .timing-area {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .timing-area label {
+      font-size: 13px;
+      color: #666;
+    }
+    .timing-area input {
+      width: 64px;
+      padding: 4px 8px;
+      font-size: 13px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      margin-left: 4px;
+    }
+    .timing-area input:focus { outline: none; border-color: #666; }
+    .phase-time {
+      font-size: 14px;
+      color: #888;
+      font-weight: 400;
+      margin-left: 8px;
+    }
+
     .footer {
       margin-top: 48px;
       padding-top: 16px;
@@ -280,6 +307,12 @@
     <div class="input-actions">
       <button onclick="copyText()">複製舞序文字</button>
     </div>
+  </div>
+
+  <div class="timing-area">
+    <span class="tpl-label">時間軸：</span>
+    <label>開始 <input type="text" id="startTime" placeholder="0:00" value="" oninput="render()"></label>
+    <label>BPM <input type="number" id="bpmInput" placeholder="120" value="" oninput="render()"></label>
   </div>
 
   <div class="footer">v1.2 — Kai, built with Claude Code ｜ <a href="https://forms.gle/X1pvyDiYAPpw9otMA" target="_blank">許願 & 回報 Bug</a></div>
@@ -868,6 +901,22 @@ T Part 2
       return html;
     }
 
+    function parseTime(str) {
+      if (!str) return null;
+      const parts = str.trim().split(':');
+      if (parts.length !== 2) return null;
+      const min = parseInt(parts[0]);
+      const sec = parseInt(parts[1]);
+      if (isNaN(min) || isNaN(sec)) return null;
+      return min * 60 + sec;
+    }
+
+    function formatTime(totalSec) {
+      const min = Math.floor(totalSec / 60);
+      const sec = Math.floor(totalSec % 60);
+      return min + ':' + String(sec).padStart(2, '0');
+    }
+
     function render() {
       const { phases, phaseNames, routineName } = parseMoves(inputEl.value);
       if (!phases.length) {
@@ -875,12 +924,19 @@ T Part 2
         return;
       }
 
+      // Timing calculation
+      const startSec = parseTime(document.getElementById('startTime').value);
+      const bpm = parseFloat(document.getElementById('bpmInput').value);
+      const hasTiming = startSec !== null && bpm > 0;
+      const secPerBeat = hasTiming ? 60 / bpm : 0;
+
       let tableHtml = '';
       if (routineName) {
         tableHtml += `<p class="routine-name">${routineName}</p>`;
       }
       let seqHtml = '';
       let offset = 0;
+      let beatOffset = 0;
 
       phases.forEach((moves, pi) => {
         const name = phaseNames[pi];
@@ -893,19 +949,25 @@ T Part 2
           phaseLabel = '';
         }
 
+        const timeTag = hasTiming ? `<span class="phase-time">${formatTime(startSec + beatOffset * secPerBeat)}</span>` : '';
+
         if (phaseLabel) {
-          tableHtml += `<h2>${phaseLabel}</h2>`;
+          tableHtml += `<h2>${phaseLabel}${timeTag}</h2>`;
         }
         const result = buildTable(moves, offset);
         tableHtml += result.html;
         offset += result.totalEights;
 
+        const phaseBeats = moves.reduce((sum, mv) => sum + mv.count, 0);
+
         if (phaseLabel) {
-          seqHtml += `<h2>${phaseLabel} 動作順序</h2>`;
+          seqHtml += `<h2>${phaseLabel} 動作順序${timeTag}</h2>`;
         } else {
-          seqHtml += `<h2>動作順序</h2>`;
+          seqHtml += `<h2>動作順序${timeTag}</h2>`;
         }
         seqHtml += buildSequence(moves, pi);
+
+        beatOffset += phaseBeats;
       });
 
       let html = `<div id="chart-area">${tableHtml}<p class="note">同色 = 同一個動作 ｜ ↓ = 動作跨越 8 拍邊界延續</p></div>`;
