@@ -293,19 +293,27 @@ T Part 2
 
     // Load from URL: shared data takes priority, then preset, then default
     const params = new URLSearchParams(window.location.search);
-    const sharedData = params.get('data');
     const routine = params.get('routine');
-    if (sharedData) {
-      try { inputEl.value = decodeURIComponent(atob(sharedData)); } catch(e) { inputEl.value = PRESETS['default']; }
-    } else {
-      inputEl.value = PRESETS[routine] || PRESETS['default'];
-    }
 
     if (routine && TITLES[routine]) {
       document.getElementById('page-title').textContent = TITLES[routine].title;
       document.getElementById('page-subtitle').textContent = TITLES[routine].subtitle;
       document.title = TITLES[routine].title + ' — 排舞圖表';
     }
+
+    // Load shared data (compressed ?d= or legacy ?data=), then preset, then default
+    (async function loadInput() {
+      const compressed = params.get('d');
+      const legacyData = params.get('data');
+      if (compressed) {
+        try { inputEl.value = await decompress(compressed); } catch(e) { inputEl.value = PRESETS['default']; }
+      } else if (legacyData) {
+        try { inputEl.value = decodeURIComponent(atob(legacyData)); } catch(e) { inputEl.value = PRESETS['default']; }
+      } else {
+        inputEl.value = PRESETS[routine] || PRESETS['default'];
+      }
+      render();
+    })();
 
     function toggleDetailView() {
       showDetail = !showDetail;
@@ -323,18 +331,58 @@ T Part 2
       });
     }
 
-    function shareUrl() {
-      const encoded = btoa(encodeURIComponent(inputEl.value));
-      const url = location.origin + location.pathname + '?data=' + encoded;
-      navigator.clipboard.writeText(url).then(() => {
-        const btn = event.target;
-        btn.textContent = '已複製連結';
-        setTimeout(() => { btn.textContent = '分享'; }, 1500);
-      });
+    // Compress string with deflate, return URL-safe base64
+    async function compress(str) {
+      const bytes = new TextEncoder().encode(str);
+      const cs = new CompressionStream('deflate-raw');
+      const writer = cs.writable.getWriter();
+      writer.write(bytes);
+      writer.close();
+      const chunks = [];
+      const reader = cs.readable.getReader();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+      }
+      const buf = new Uint8Array(chunks.reduce((a, c) => a + c.length, 0));
+      let offset = 0;
+      for (const c of chunks) { buf.set(c, offset); offset += c.length; }
+      // URL-safe base64: replace +/= with -_.
+      return btoa(String.fromCharCode(...buf)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+
+    // Decompress URL-safe base64 back to string
+    async function decompress(encoded) {
+      // Restore standard base64
+      let b64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
+      while (b64.length % 4) b64 += '=';
+      const binary = atob(b64);
+      const bytes = Uint8Array.from(binary, c => c.charCodeAt(0));
+      const ds = new DecompressionStream('deflate-raw');
+      const writer = ds.writable.getWriter();
+      writer.write(bytes);
+      writer.close();
+      const chunks = [];
+      const reader = ds.readable.getReader();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+      }
+      return new TextDecoder().decode(new Uint8Array(chunks.reduce((a, c) => { const r = new Uint8Array(a.length + c.length); r.set(a); r.set(c, a.length); return r; }, new Uint8Array())));
+    }
+
+    async function shareUrl() {
+      const encoded = await compress(inputEl.value);
+      const url = location.origin + location.pathname + '?d=' + encoded;
+      await navigator.clipboard.writeText(url);
+      const btn = event.target;
+      btn.textContent = '已複製連結';
+      setTimeout(() => { btn.textContent = '分享'; }, 1500);
     }
 
     inputEl.addEventListener('input', render);
-    render();
 
     function parseMoves(text) {
       const phases = [];
