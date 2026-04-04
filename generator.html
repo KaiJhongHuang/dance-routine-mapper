@@ -18,13 +18,23 @@
     .nav a { color: #666; text-decoration: none; font-size: 14px; }
     .nav a:hover { color: #333; }
 
+    .help {
+      color: #999;
+      font-size: 12px;
+      line-height: 1.6;
+      margin-bottom: 6px;
+    }
+    .help code {
+      background: #f0f0f0;
+      padding: 1px 4px;
+      border-radius: 3px;
+      font-size: 11px;
+    }
     .input-area {
-      display: flex;
-      gap: 16px;
-      margin-bottom: 24px;
+      margin-bottom: 16px;
     }
     .input-area textarea {
-      flex: 1;
+      width: 100%;
       height: 200px;
       padding: 12px;
       font-family: monospace;
@@ -33,25 +43,11 @@
       border-radius: 8px;
       resize: vertical;
       line-height: 1.6;
+      box-sizing: border-box;
     }
     .input-area textarea:focus {
       outline: none;
       border-color: #666;
-    }
-    .help {
-      flex: 0 0 220px;
-      background: #f5f5f5;
-      border-radius: 8px;
-      padding: 12px 16px;
-      font-size: 13px;
-      color: #666;
-      line-height: 1.6;
-    }
-    .help code {
-      background: #e0e0e0;
-      padding: 1px 4px;
-      border-radius: 3px;
-      font-size: 12px;
     }
 
     hr { border: none; border-top: 1px solid #ddd; margin: 24px 0; }
@@ -117,9 +113,13 @@
       padding: 0 4px;
     }
 
-    /* Toggle button */
-    .toggle-detail {
-      display: inline-block;
+    /* Toolbar */
+    .toolbar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .toolbar button {
       padding: 6px 16px;
       font-size: 13px;
       border: 2px solid #ccc;
@@ -127,10 +127,16 @@
       background: #fff;
       color: #666;
       cursor: pointer;
-      margin-bottom: 12px;
     }
-    .toggle-detail:hover { border-color: #999; color: #333; }
-    .toggle-detail.active { background: #444; color: #fff; border-color: #444; }
+    .toolbar button:hover { border-color: #999; color: #333; }
+    .toolbar button.active { background: #444; color: #fff; border-color: #444; }
+
+    /* Routine name */
+    .routine-name {
+      font-size: 20px;
+      font-weight: 700;
+      margin: 0 0 16px;
+    }
 
     .note {
       color: #888;
@@ -173,25 +179,19 @@
   <h1 id="page-title">排舞圖表產生器</h1>
   <p class="subtitle" id="page-subtitle">輸入動作序列，自動產生色彩表格</p>
 
+  <div class="help">
+    第一行為舞序名稱，<code>T 段落名稱</code> 分隔段落，每行 <code>拍數 動作名稱</code><br>
+    縮排行為子步法，點「顯示細節」展開
+  </div>
   <div class="input-area">
-    <textarea id="input" placeholder="每行輸入：拍數 + 動作名稱&#10;例如：&#10;T 第一段&#10;6 6 Count Basic&#10;6 Send Out&#10;&#10;T 第二段&#10;8 Swing Out&#10;8 Texas Tommy"></textarea>
-    <div class="help">
-      <strong>格式說明</strong><br><br>
-      每行一個動作：<br>
-      <code>拍數</code> + <code>動作名稱</code><br><br>
-      例如：<br>
-      <code>6 6 Count Basic</code><br>
-      <code>8 Send Out</code><br>
-      <code>10 Solo</code><br><br>
-      用 <code>T 段落名稱</code> 或 <code>---</code><br>分隔不同段落<br><br>
-      子步法（縮排）：<br>
-      <code>&nbsp;&nbsp;2 Rock Step</code><br>
-      <code>&nbsp;&nbsp;2 Triple Step</code><br><br>
-      輸入後即時產生表格
-    </div>
+    <textarea id="input" placeholder="舞序名稱&#10;T 第一段&#10;6 6 Count Basic&#10;6 Send Out&#10;&#10;T 第二段&#10;8 Swing Out&#10;8 Texas Tommy"></textarea>
   </div>
 
-  <button id="toggleDetail" class="toggle-detail" onclick="toggleDetailView()">顯示細節</button>
+  <div class="toolbar">
+    <button id="toggleDetail" onclick="toggleDetailView()">顯示細節</button>
+    <button onclick="copyText()">複製</button>
+    <button onclick="shareUrl()">分享</button>
+  </div>
   <div id="output"></div>
 
   <div class="footer">v1.1 — Kai, built with Claude Code</div>
@@ -202,7 +202,8 @@
     let showDetail = false;
 
     const PRESETS = {
-      default: `T 第一段
+      default: `Lindy Hop 基本組合
+T 第一段
 6 6 Count Basic
   2 Rock Step
   2 Triple Step
@@ -243,7 +244,8 @@ T 第二段
   2 Step Step
   2 Triple Step`,
 
-      'shim-sham': `T Stomp Off
+      'shim-sham': `Shim Sham
+T Stomp Off
 8 Stomp Off (R)
 8 Stomp Off (L)
 8 Stomp Off (R)
@@ -267,7 +269,8 @@ T Half Break
 8 Half Break
 8 Break`,
 
-      'big-apple': `T Part 1
+      'big-apple': `Big Apple
+T Part 1
 8 Boogie Back
 8 Suzy Q
 8 Spank the Baby
@@ -288,10 +291,15 @@ T Part 2
     const inputEl = document.getElementById('input');
     const outputEl = document.getElementById('output');
 
-    // Load preset from URL parameter
+    // Load from URL: shared data takes priority, then preset, then default
     const params = new URLSearchParams(window.location.search);
+    const sharedData = params.get('data');
     const routine = params.get('routine');
-    inputEl.value = PRESETS[routine] || PRESETS['default'];
+    if (sharedData) {
+      try { inputEl.value = decodeURIComponent(atob(sharedData)); } catch(e) { inputEl.value = PRESETS['default']; }
+    } else {
+      inputEl.value = PRESETS[routine] || PRESETS['default'];
+    }
 
     if (routine && TITLES[routine]) {
       document.getElementById('page-title').textContent = TITLES[routine].title;
@@ -307,6 +315,24 @@ T Part 2
       render();
     }
 
+    function copyText() {
+      navigator.clipboard.writeText(inputEl.value).then(() => {
+        const btn = event.target;
+        btn.textContent = '已複製';
+        setTimeout(() => { btn.textContent = '複製'; }, 1500);
+      });
+    }
+
+    function shareUrl() {
+      const encoded = btoa(encodeURIComponent(inputEl.value));
+      const url = location.origin + location.pathname + '?data=' + encoded;
+      navigator.clipboard.writeText(url).then(() => {
+        const btn = event.target;
+        btn.textContent = '已複製連結';
+        setTimeout(() => { btn.textContent = '分享'; }, 1500);
+      });
+    }
+
     inputEl.addEventListener('input', render);
     render();
 
@@ -315,10 +341,23 @@ T Part 2
       let current = [];
       let phaseNames = [];
       let currentName = null;
+      let routineName = null;
+      let firstLine = true;
 
       for (const raw of text.split('\n')) {
         const trimmed = raw.trim();
         if (!trimmed) continue;
+
+        // First non-empty line: if not a T/--- or move, treat as routine name
+        if (firstLine) {
+          firstLine = false;
+          const isSection = /^T(?:\s|$)/.test(trimmed) || /^-{2,}$/.test(trimmed);
+          const isMove = /^\d+\s+.+$/.test(trimmed);
+          if (!isSection && !isMove) {
+            routineName = trimmed;
+            continue;
+          }
+        }
 
         // Section separator: "T name" or "T" alone or "---"
         const sectionMatch = trimmed.match(/^T(?:\s+(.+))?$/);
@@ -350,7 +389,7 @@ T Part 2
         phases.push(current);
         phaseNames.push(currentName);
       }
-      return { phases, phaseNames };
+      return { phases, phaseNames, routineName };
     }
 
     function buildTable(moves, eightCountOffset) {
@@ -499,13 +538,16 @@ T Part 2
     }
 
     function render() {
-      const { phases, phaseNames } = parseMoves(inputEl.value);
+      const { phases, phaseNames, routineName } = parseMoves(inputEl.value);
       if (!phases.length) {
         outputEl.innerHTML = '';
         return;
       }
 
       let tableHtml = '';
+      if (routineName) {
+        tableHtml += `<p class="routine-name">${routineName}</p>`;
+      }
       let seqHtml = '';
       let offset = 0;
 
