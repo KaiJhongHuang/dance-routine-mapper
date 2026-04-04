@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>排舞圖表產生器</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <style>
     body {
       font-family: -apple-system, "Microsoft JhengHei", sans-serif;
@@ -54,6 +55,7 @@
 
     /* === 表格樣式 === */
     #output { margin-top: 16px; }
+    #chart-area { padding: 16px; background: #fff; }
     table {
       width: 100%;
       border-collapse: collapse;
@@ -191,6 +193,7 @@
     <button id="toggleDetail" onclick="toggleDetailView()">顯示細節</button>
     <button onclick="copyText()">複製</button>
     <button onclick="shareUrl()">分享</button>
+    <button onclick="exportChart()">匯出圖片</button>
   </div>
   <div id="output"></div>
 
@@ -380,6 +383,25 @@ T Part 2
       const btn = event.target;
       btn.textContent = '已複製連結';
       setTimeout(() => { btn.textContent = '分享'; }, 1500);
+    }
+
+    async function exportChart() {
+      const chartArea = document.getElementById('chart-area');
+      if (!chartArea) return;
+      const canvas = await html2canvas(chartArea, { backgroundColor: '#ffffff', scale: 2 });
+      canvas.toBlob(async (blob) => {
+        const file = new File([blob], 'dance-chart.png', { type: 'image/png' });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({ files: [file] });
+        } else {
+          // Fallback: download
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = 'dance-chart.png';
+          a.click();
+          URL.revokeObjectURL(a.href);
+        }
+      }, 'image/png');
     }
 
     inputEl.addEventListener('input', render);
@@ -625,8 +647,7 @@ T Part 2
         seqHtml += buildSequence(moves);
       });
 
-      let html = tableHtml;
-      html += '<p class="note">同色 = 同一個動作 ｜ ↓ = 動作跨越 8 拍邊界延續</p>';
+      let html = `<div id="chart-area">${tableHtml}<p class="note">同色 = 同一個動作 ｜ ↓ = 動作跨越 8 拍邊界延續</p></div>`;
       html += '<hr>';
       html += seqHtml;
 
