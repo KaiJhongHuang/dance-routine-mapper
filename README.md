@@ -12,25 +12,29 @@
 - 內建經典排舞預設：Shim Sham、Big Apple（動作順序依據 1939 年 Keep Punching 影片版本）
 - **子步法記譜**：用縮排標記動作內的步法細節（如 Rock Step、Triple Step）
 - **「顯示細節」切換**：一鍵切換總覽 / 細節檢視模式
+- **舞序名稱**：第一行自動識別為舞序標題
+- **拖拉排序**：動作順序區可拖拉調整，支援跨段落搬移
+- **快捷範本**：常見拍數與動作一鍵插入
+- **匯出圖片**：截取圖表為 PNG，手機支援原生分享
+- **分享連結**：將舞序壓縮為 URL，一鍵分享
 
 ## 輸入格式
 
-每行一個動作，格式為 `拍數` + `動作名稱`，用 `T` + `標題` 分隔段落：
+第一行為舞序名稱，`T` + `標題` 分隔段落，每行 `拍數` + `動作名稱`：
 
 ```
-T Part 1
+Lindy Hop 基本組合
+T 第一段
+6 6 Count Basic
+6 Send Out
+8 Break
+
+T 第二段
 8 Swing Out
 8 Texas Tommy
-6 Send Out
-6 Change Place
-
-T Part 2
-8 Lindy Circle
-8 Charleston
-8 Break
 ```
 
-### 子步法（v1.1 新增）
+### 子步法
 
 在動作下方用縮排標記每段拍的步法細節：
 
@@ -38,11 +42,6 @@ T Part 2
 6 Send Out
   2 Rock Step
   2 Triple Step
-  2 Triple Step
-8 Swing Out
-  2 Rock Step
-  2 Triple Step
-  2 Step Step
   2 Triple Step
 ```
 
@@ -53,6 +52,17 @@ T Part 2
 沒有子步法的動作不受影響，完全向下相容。
 
 ## 版本紀錄
+
+### v1.2
+
+- 頁面版面重新排列：圖表 → 動作順序 → 文字輸入區
+- 舞序名稱（輸入第一行），顯示於圖表上方
+- 匯出圖片：html2canvas + Web Share API，手機可直接分享
+- 分享連結：deflate 壓縮 + URL-safe Base64，短網址分享
+- 拖拉排序：動作順序區可拖拉，支援跨段落搬移，手機觸控支援
+- 快捷範本：拍數佔位符（2/4/6/8 拍）與常見動作（含子步法）一鍵插入
+- 手機編輯輔助：換行、刪行按鈕
+- 複製按鈕移至輸入區下方
 
 ### v1.1
 

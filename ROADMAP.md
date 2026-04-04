@@ -1,6 +1,6 @@
 # Roadmap
 
-## #1 印刷模式
+## #1 印刷模式 ✅ v1.2
 
 匯出圖表為圖片，支援 Web Share API（手機可直接分享到 ibon / LINE），桌機則下載 PNG。
 
@@ -9,15 +9,15 @@
 
 Issue: [#1](https://github.com/KaiJhongHuang/dance-routine-mapper/issues/1)
 
-## #2 拖拉排序
+## #2 拖拉排序 ✅ v1.2
 
-在圖表或動作順序區直接拖拉動作來調整順序，拖拉結束後自動同步更新文字輸入。
+動作順序區可拖拉調整順序，支援跨段落搬移，桌機與手機觸控皆可使用。
 
 Issue: [#2](https://github.com/KaiJhongHuang/dance-routine-mapper/issues/2)
 
-## #3 快捷範本
+## #3 快捷範本 ✅ v1.2
 
-提供常見步法組合（6-count basic、8-count swing out 等）一鍵插入，範本包含預設子步法。
+提供拍數佔位符與常見動作（含子步法）一鍵插入，另附換行、刪行手機輔助按鈕。
 
 Issue: [#3](https://github.com/KaiJhongHuang/dance-routine-mapper/issues/3)
 
