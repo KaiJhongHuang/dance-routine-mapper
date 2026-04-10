@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>排舞圖表產生器</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <style>
     body {
       font-family: -apple-system, "Microsoft JhengHei", sans-serif;
@@ -18,13 +19,38 @@
     .nav a { color: #666; text-decoration: none; font-size: 14px; }
     .nav a:hover { color: #333; }
 
-    .input-area {
-      display: flex;
-      gap: 16px;
-      margin-bottom: 24px;
+    .help {
+      color: #999;
+      font-size: 12px;
+      line-height: 1.6;
+      margin-bottom: 6px;
     }
+    .help code {
+      background: #f0f0f0;
+      padding: 1px 4px;
+      border-radius: 3px;
+      font-size: 11px;
+    }
+    .input-area {
+      margin-bottom: 16px;
+    }
+    .input-actions {
+      margin-top: 8px;
+      display: flex;
+      gap: 8px;
+    }
+    .input-actions button {
+      padding: 6px 16px;
+      font-size: 13px;
+      border: 2px solid #ccc;
+      border-radius: 6px;
+      background: #fff;
+      color: #666;
+      cursor: pointer;
+    }
+    .input-actions button:hover { border-color: #999; color: #333; }
     .input-area textarea {
-      flex: 1;
+      width: 100%;
       height: 200px;
       padding: 12px;
       font-family: monospace;
@@ -33,31 +59,18 @@
       border-radius: 8px;
       resize: vertical;
       line-height: 1.6;
+      box-sizing: border-box;
     }
     .input-area textarea:focus {
       outline: none;
       border-color: #666;
-    }
-    .help {
-      flex: 0 0 220px;
-      background: #f5f5f5;
-      border-radius: 8px;
-      padding: 12px 16px;
-      font-size: 13px;
-      color: #666;
-      line-height: 1.6;
-    }
-    .help code {
-      background: #e0e0e0;
-      padding: 1px 4px;
-      border-radius: 3px;
-      font-size: 12px;
     }
 
     hr { border: none; border-top: 1px solid #ddd; margin: 24px 0; }
 
     /* === 表格樣式 === */
     #output { margin-top: 16px; }
+    #chart-area { padding: 16px; background: #fff; }
     table {
       width: 100%;
       border-collapse: collapse;
@@ -88,20 +101,23 @@
     .c6 { background: #ffedd5; font-weight: 600; }
     .c7 { background: #ccfbf1; font-weight: 600; }
     .c8 { background: #fee2e2; font-weight: 600; }
-    /* Sub-step styles in table */
-    td.has-sub { padding: 6px 4px; }
-    td.has-sub .main-name { font-size: 10px; opacity: 0.65; margin-bottom: 2px; }
-    td.has-sub .sub-name { font-size: 13px; }
-
-    /* Lighter color variants for sub-step cells */
-    .c1.has-sub { background: #ebf2fe; }
-    .c2.has-sub { background: #fef8e0; }
-    .c3.has-sub { background: #e4fcf0; }
-    .c4.has-sub { background: #fdf0f7; }
-    .c5.has-sub { background: #f2e8ff; }
-    .c6.has-sub { background: #fff4e6; }
-    .c7.has-sub { background: #e0fdf8; }
-    .c8.has-sub { background: #fff0f0; }
+    /* Detail view: main row + sub-step row */
+    td.main-row { border-bottom: 1px solid rgba(0,0,0,0.08); padding: 8px 4px 4px; }
+    td.sub-row {
+      font-size: 10px;
+      font-weight: 400;
+      padding: 2px 4px 6px;
+      opacity: 0.7;
+    }
+    /* Lighter color variants for sub-step row */
+    .c1.sub-row { background: #ebf2fe; }
+    .c2.sub-row { background: #fef8e0; }
+    .c3.sub-row { background: #e4fcf0; }
+    .c4.sub-row { background: #fdf0f7; }
+    .c5.sub-row { background: #f2e8ff; }
+    .c6.sub-row { background: #fff4e6; }
+    .c7.sub-row { background: #e0fdf8; }
+    .c8.sub-row { background: #fff0f0; }
 
     /* Sub-step in sequence list */
     .seq-substeps {
@@ -114,9 +130,13 @@
       padding: 0 4px;
     }
 
-    /* Toggle button */
-    .toggle-detail {
-      display: inline-block;
+    /* Toolbar */
+    .toolbar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .toolbar button {
       padding: 6px 16px;
       font-size: 13px;
       border: 2px solid #ccc;
@@ -124,10 +144,16 @@
       background: #fff;
       color: #666;
       cursor: pointer;
-      margin-bottom: 12px;
     }
-    .toggle-detail:hover { border-color: #999; color: #333; }
-    .toggle-detail.active { background: #444; color: #fff; border-color: #444; }
+    .toolbar button:hover { border-color: #999; color: #333; }
+    .toolbar button.active { background: #444; color: #fff; border-color: #444; }
+
+    /* Routine name */
+    .routine-name {
+      font-size: 20px;
+      font-weight: 700;
+      margin: 0 0 16px;
+    }
 
     .note {
       color: #888;
@@ -154,6 +180,80 @@
       font-weight: bold;
     }
 
+    /* Drag and drop */
+    .seq-item {
+      padding: 4px 8px;
+      border-radius: 4px;
+      cursor: grab;
+      transition: background 0.15s;
+      display: flex;
+      align-items: baseline;
+      gap: 4px;
+    }
+    .seq-item:hover { background: rgba(0,0,0,0.04); }
+    .seq-item.dragging { opacity: 0.3; }
+    .seq-item.drag-over { box-shadow: 0 -2px 0 #666; }
+    .seq-item .drag-handle {
+      color: #ccc;
+      font-size: 12px;
+      cursor: grab;
+      user-select: none;
+      flex-shrink: 0;
+    }
+    .seq-item .drag-handle:hover { color: #999; }
+    .seq-item .seq-content { flex: 1; }
+
+    /* Templates */
+    .templates {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+    .templates button {
+      padding: 4px 10px;
+      font-size: 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      background: #fafafa;
+      color: #666;
+      cursor: pointer;
+    }
+    .templates button:hover { background: #f0f0f0; border-color: #bbb; }
+    .tpl-label {
+      font-size: 12px;
+      color: #999;
+      margin-right: 4px;
+      align-self: center;
+    }
+
+    /* Timing */
+    .timing-area {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .timing-area label {
+      font-size: 13px;
+      color: #666;
+    }
+    .timing-area input {
+      width: 64px;
+      padding: 4px 8px;
+      font-size: 13px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      margin-left: 4px;
+    }
+    .timing-area input:focus { outline: none; border-color: #666; }
+    .phase-time {
+      font-size: 14px;
+      color: #888;
+      font-weight: 400;
+      margin-left: 8px;
+    }
+
     .footer {
       margin-top: 48px;
       padding-top: 16px;
@@ -162,6 +262,8 @@
       color: #bbb;
       text-align: center;
     }
+    .footer a { color: #2563eb; text-decoration: underline; }
+    .footer a:hover { color: #1d4ed8; }
   </style>
 </head>
 <body>
@@ -170,36 +272,59 @@
   <h1 id="page-title">排舞圖表產生器</h1>
   <p class="subtitle" id="page-subtitle">輸入動作序列，自動產生色彩表格</p>
 
+  <div class="toolbar">
+    <button id="toggleDetail" class="active" onclick="toggleDetailView()">隱藏細節</button>
+    <button onclick="shareUrl()">分享連結</button>
+    <button onclick="exportChart()">匯出圖片</button>
+  </div>
+  <div id="output"></div>
+
+  <hr>
+  <div class="help">
+    第一行為舞序名稱，<code>T 段落名稱</code> 分隔段落，每行 <code>拍數 動作名稱</code><br>
+    縮排行為子步法，點「顯示細節」展開
+  </div>
+  <div class="templates">
+    <span class="tpl-label">插入：</span>
+    <button onclick="insertTemplate('section')">標題</button>
+    <button onclick="insertTemplate('2c')">2 拍</button>
+    <button onclick="insertTemplate('4c')">4 拍</button>
+    <button onclick="insertTemplate('6c')">6 拍</button>
+    <button onclick="insertTemplate('8c')">8 拍</button>
+    <button onclick="insertTemplate('sub')">2 拍子步法</button>
+    <button onclick="insertNewline()">換行</button>
+    <button onclick="deleteLine()">刪行</button>
+  </div>
+  <div class="templates">
+    <span class="tpl-label">動作：</span>
+    <button onclick="insertTemplate('sendout')">Send Out</button>
+    <button onclick="insertTemplate('change')">Change Place</button>
+    <button onclick="insertTemplate('callback')">Call Back</button>
+    <button onclick="insertTemplate('swingout')">Swing Out</button>
+  </div>
   <div class="input-area">
-    <textarea id="input" placeholder="每行輸入：拍數 + 動作名稱&#10;例如：&#10;T 第一段&#10;6 6 Count Basic&#10;6 Send Out&#10;&#10;T 第二段&#10;8 Swing Out&#10;8 Texas Tommy"></textarea>
-    <div class="help">
-      <strong>格式說明</strong><br><br>
-      每行一個動作：<br>
-      <code>拍數</code> + <code>動作名稱</code><br><br>
-      例如：<br>
-      <code>6 6 Count Basic</code><br>
-      <code>8 Send Out</code><br>
-      <code>10 Solo</code><br><br>
-      用 <code>T 段落名稱</code> 或 <code>---</code><br>分隔不同段落<br><br>
-      子步法（縮排）：<br>
-      <code>&nbsp;&nbsp;2 Rock Step</code><br>
-      <code>&nbsp;&nbsp;2 Triple Step</code><br><br>
-      輸入後即時產生表格
+    <textarea id="input" placeholder="舞序名稱&#10;T 第一段&#10;6 6 Count Basic&#10;6 Send Out&#10;&#10;T 第二段&#10;8 Swing Out&#10;8 Texas Tommy"></textarea>
+    <div class="input-actions">
+      <button onclick="copyText()">複製舞序文字</button>
     </div>
   </div>
 
-  <button id="toggleDetail" class="toggle-detail" onclick="toggleDetailView()">顯示細節</button>
-  <div id="output"></div>
+  <div class="timing-area">
+    <span class="tpl-label">時間軸：</span>
+    <label>開始 <input type="text" id="startTime" value="0:00" oninput="render()"></label>
+    <label>BPM <input type="number" id="bpmInput" value="150" min="1" oninput="render()"></label>
+  </div>
 
-  <div class="footer">v1.0 — Kai, built with Claude Code</div>
+  <div class="footer">v1.2 — Kai, built with Claude Code ｜ <a href="https://forms.gle/X1pvyDiYAPpw9otMA" target="_blank">許願 & 回報 Bug</a></div>
 
   <script>
     const COLORS = ['c1','c2','c3','c4','c5','c6','c7','c8'];
 
-    let showDetail = false;
+    let showDetail = true;
 
     const PRESETS = {
-      default: `T 第一段
+      default: `Lindy Hop 基本組合
+T 第一段
 6 6 Count Basic
   2 Rock Step
   2 Triple Step
@@ -240,7 +365,8 @@ T 第二段
   2 Step Step
   2 Triple Step`,
 
-      'shim-sham': `T Stomp Off
+      'shim-sham': `Shim Sham
+T Stomp Off
 8 Stomp Off (R)
 8 Stomp Off (L)
 8 Stomp Off (R)
@@ -264,7 +390,8 @@ T Half Break
 8 Half Break
 8 Break`,
 
-      'big-apple': `T Part 1
+      'big-apple': `Big Apple
+T Part 1
 8 Boogie Back
 8 Suzy Q
 8 Spank the Baby
@@ -285,16 +412,29 @@ T Part 2
     const inputEl = document.getElementById('input');
     const outputEl = document.getElementById('output');
 
-    // Load preset from URL parameter
+    // Load from URL: shared data takes priority, then preset, then default
     const params = new URLSearchParams(window.location.search);
     const routine = params.get('routine');
-    inputEl.value = PRESETS[routine] || PRESETS['default'];
 
     if (routine && TITLES[routine]) {
       document.getElementById('page-title').textContent = TITLES[routine].title;
       document.getElementById('page-subtitle').textContent = TITLES[routine].subtitle;
       document.title = TITLES[routine].title + ' — 排舞圖表';
     }
+
+    // Load shared data (compressed ?d= or legacy ?data=), then preset, then default
+    (async function loadInput() {
+      const compressed = params.get('d');
+      const legacyData = params.get('data');
+      if (compressed) {
+        try { inputEl.value = await decompress(compressed); } catch(e) { inputEl.value = PRESETS['default']; }
+      } else if (legacyData) {
+        try { inputEl.value = decodeURIComponent(atob(legacyData)); } catch(e) { inputEl.value = PRESETS['default']; }
+      } else {
+        inputEl.value = PRESETS[routine] || PRESETS['default'];
+      }
+      render();
+    })();
 
     function toggleDetailView() {
       showDetail = !showDetail;
@@ -304,18 +444,281 @@ T Part 2
       render();
     }
 
+    function copyText() {
+      navigator.clipboard.writeText(inputEl.value).then(() => {
+        const btn = event.target;
+        btn.textContent = '已複製';
+        setTimeout(() => { btn.textContent = '複製舞序文字'; }, 1500);
+      });
+    }
+
+    // Compress string with deflate, return URL-safe base64
+    async function compress(str) {
+      const bytes = new TextEncoder().encode(str);
+      const cs = new CompressionStream('deflate-raw');
+      const writer = cs.writable.getWriter();
+      writer.write(bytes);
+      writer.close();
+      const chunks = [];
+      const reader = cs.readable.getReader();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+      }
+      const buf = new Uint8Array(chunks.reduce((a, c) => a + c.length, 0));
+      let offset = 0;
+      for (const c of chunks) { buf.set(c, offset); offset += c.length; }
+      // URL-safe base64: replace +/= with -_.
+      return btoa(String.fromCharCode(...buf)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+
+    // Decompress URL-safe base64 back to string
+    async function decompress(encoded) {
+      // Restore standard base64
+      let b64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
+      while (b64.length % 4) b64 += '=';
+      const binary = atob(b64);
+      const bytes = Uint8Array.from(binary, c => c.charCodeAt(0));
+      const ds = new DecompressionStream('deflate-raw');
+      const writer = ds.writable.getWriter();
+      writer.write(bytes);
+      writer.close();
+      const chunks = [];
+      const reader = ds.readable.getReader();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+      }
+      return new TextDecoder().decode(new Uint8Array(chunks.reduce((a, c) => { const r = new Uint8Array(a.length + c.length); r.set(a); r.set(c, a.length); return r; }, new Uint8Array())));
+    }
+
+    async function shareUrl() {
+      const encoded = await compress(inputEl.value);
+      const url = location.origin + location.pathname + '?d=' + encoded;
+      await navigator.clipboard.writeText(url);
+      const btn = event.target;
+      btn.textContent = '已複製連結';
+      setTimeout(() => { btn.textContent = '分享連結'; }, 1500);
+    }
+
+    async function exportChart() {
+      const chartArea = document.getElementById('chart-area');
+      if (!chartArea) return;
+      const canvas = await html2canvas(chartArea, { backgroundColor: '#ffffff', scale: 2 });
+      canvas.toBlob(async (blob) => {
+        const file = new File([blob], 'dance-chart.png', { type: 'image/png' });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({ files: [file] });
+        } else {
+          // Fallback: download
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = 'dance-chart.png';
+          a.click();
+          URL.revokeObjectURL(a.href);
+        }
+      }, 'image/png');
+    }
+
+    // === Quick Templates ===
+    const TEMPLATES = {
+      '2c':         '2 -',
+      '4c':         '4 -',
+      '6c':         '6 -',
+      '8c':         '8 -',
+      'sub':        '  2 -',
+      'sendout':    '6 Send Out\n  2 Rock Step\n  2 Triple Step\n  2 Triple Step',
+      'change':     '6 Change Place\n  2 Rock Step\n  2 Triple Step\n  2 Triple Step',
+      'callback':   '6 Call Back\n  2 Rock Step\n  2 Triple Step\n  2 Triple Step',
+      'swingout':   '8 Swing Out\n  2 Rock Step\n  2 Triple Step\n  2 Step Step\n  2 Triple Step',
+      'section':    '\nT 新段落',
+    };
+
+    function insertTemplate(key) {
+      const tpl = TEMPLATES[key];
+      if (!tpl) return;
+      const pos = inputEl.selectionStart;
+      const before = inputEl.value.slice(0, pos);
+      const after = inputEl.value.slice(pos);
+      const needNewline = before.length > 0 && !before.endsWith('\n') ? '\n' : '';
+      inputEl.value = before + needNewline + tpl + '\n' + after;
+      inputEl.focus();
+      const newPos = (before + needNewline + tpl + '\n').length;
+      inputEl.setSelectionRange(newPos, newPos);
+      render();
+    }
+
+    function insertNewline() {
+      const pos = inputEl.selectionStart;
+      const before = inputEl.value.slice(0, pos);
+      const after = inputEl.value.slice(pos);
+      inputEl.value = before + '\n' + after;
+      inputEl.focus();
+      inputEl.setSelectionRange(pos + 1, pos + 1);
+      render();
+    }
+
+    function deleteLine() {
+      const pos = inputEl.selectionStart;
+      const text = inputEl.value;
+      const lineStart = text.lastIndexOf('\n', pos - 1) + 1;
+      let lineEnd = text.indexOf('\n', pos);
+      if (lineEnd === -1) lineEnd = text.length;
+      inputEl.value = text.slice(0, lineStart) + text.slice(lineEnd + 1);
+      inputEl.focus();
+      inputEl.setSelectionRange(lineStart, lineStart);
+      render();
+    }
+
+    // === Drag and Drop (cross-phase) ===
+    let dragPhase = null, dragIndex = null;
+
+    function moveItem(fromPhase, fromIndex, toPhase, toIndex) {
+      const parsed = parseMoves(inputEl.value);
+      const [moved] = parsed.phases[fromPhase].splice(fromIndex, 1);
+      parsed.phases[toPhase].splice(toIndex, 0, moved);
+      // Remove empty phases (but keep phase name/structure)
+      inputEl.value = generateText(parsed);
+      render();
+    }
+
+    function onDragStart(e) {
+      const item = e.target.closest('.seq-item');
+      if (!item) return;
+      dragPhase = parseInt(item.dataset.phase);
+      dragIndex = parseInt(item.dataset.index);
+      item.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    }
+
+    function onDragOver(e) {
+      e.preventDefault();
+      const item = e.target.closest('.seq-item');
+      if (!item) return;
+      e.dataTransfer.dropEffect = 'move';
+      document.querySelectorAll('.seq-item.drag-over').forEach(el => el.classList.remove('drag-over'));
+      item.classList.add('drag-over');
+    }
+
+    function onDragEnd(e) {
+      document.querySelectorAll('.seq-item.dragging, .seq-item.drag-over').forEach(el => {
+        el.classList.remove('dragging', 'drag-over');
+      });
+      dragPhase = null;
+      dragIndex = null;
+    }
+
+    function onDrop(e) {
+      e.preventDefault();
+      const item = e.target.closest('.seq-item');
+      if (!item) return;
+      const dropPhase = parseInt(item.dataset.phase);
+      const dropIndex = parseInt(item.dataset.index);
+      if (dragPhase === null || (dropPhase === dragPhase && dragIndex === dropIndex)) {
+        onDragEnd(e);
+        return;
+      }
+      moveItem(dragPhase, dragIndex, dropPhase, dropIndex);
+      onDragEnd(e);
+    }
+
+    // Reconstruct textarea text from parsed data
+    function generateText(parsed) {
+      const lines = [];
+      if (parsed.routineName) lines.push(parsed.routineName);
+      parsed.phases.forEach((moves, pi) => {
+        const name = parsed.phaseNames[pi];
+        if (name) {
+          lines.push('T ' + name);
+        } else if (pi > 0 || parsed.phases.length > 1) {
+          lines.push('T');
+        }
+        moves.forEach(mv => {
+          lines.push(mv.count + ' ' + mv.name);
+          if (mv.subSteps) {
+            mv.subSteps.forEach(sub => {
+              lines.push('  ' + sub.count + ' ' + sub.name);
+            });
+          }
+        });
+        if (pi < parsed.phases.length - 1) lines.push('');
+      });
+      return lines.join('\n');
+    }
+
+    // Touch drag support for mobile
+    let touchItem = null, touchClone = null, touchStartY = 0;
+
+    function onTouchStart(e) {
+      const item = e.target.closest('.seq-item');
+      if (!item || !e.target.closest('.drag-handle')) return;
+      touchItem = item;
+      dragPhase = parseInt(item.dataset.phase);
+      dragIndex = parseInt(item.dataset.index);
+      touchStartY = e.touches[0].clientY;
+      touchClone = item.cloneNode(true);
+      touchClone.style.cssText = 'position:fixed;pointer-events:none;opacity:0.7;z-index:999;width:' + item.offsetWidth + 'px;left:' + item.getBoundingClientRect().left + 'px;';
+      document.body.appendChild(touchClone);
+      item.classList.add('dragging');
+    }
+
+    function onTouchMove(e) {
+      if (!touchItem) return;
+      e.preventDefault();
+      const y = e.touches[0].clientY;
+      touchClone.style.top = y - 16 + 'px';
+      document.querySelectorAll('.seq-item.drag-over').forEach(el => el.classList.remove('drag-over'));
+      const el = document.elementFromPoint(e.touches[0].clientX, y);
+      if (el) {
+        const over = el.closest('.seq-item');
+        if (over) over.classList.add('drag-over');
+      }
+    }
+
+    function onTouchEnd(e) {
+      if (!touchItem) return;
+      const overEl = document.querySelector('.seq-item.drag-over');
+      if (overEl) {
+        const dropPhase = parseInt(overEl.dataset.phase);
+        const dropIndex = parseInt(overEl.dataset.index);
+        if (dragPhase !== dropPhase || dragIndex !== dropIndex) {
+          moveItem(dragPhase, dragIndex, dropPhase, dropIndex);
+        }
+      }
+      if (touchClone) { touchClone.remove(); touchClone = null; }
+      document.querySelectorAll('.seq-item.dragging, .seq-item.drag-over').forEach(el => el.classList.remove('dragging', 'drag-over'));
+      touchItem = null; dragPhase = null; dragIndex = null;
+    }
+
+    document.addEventListener('touchmove', onTouchMove, { passive: false });
+    document.addEventListener('touchend', onTouchEnd);
+
     inputEl.addEventListener('input', render);
-    render();
 
     function parseMoves(text) {
       const phases = [];
       let current = [];
       let phaseNames = [];
       let currentName = null;
+      let routineName = null;
+      let firstLine = true;
 
       for (const raw of text.split('\n')) {
         const trimmed = raw.trim();
         if (!trimmed) continue;
+
+        // First non-empty line: if not a T/--- or move, treat as routine name
+        if (firstLine) {
+          firstLine = false;
+          const isSection = /^T(?:\s|$)/.test(trimmed) || /^-{2,}$/.test(trimmed);
+          const isMove = /^\d+\s+.+$/.test(trimmed);
+          if (!isSection && !isMove) {
+            routineName = trimmed;
+            continue;
+          }
+        }
 
         // Section separator: "T name" or "T" alone or "---"
         const sectionMatch = trimmed.match(/^T(?:\s+(.+))?$/);
@@ -347,41 +750,53 @@ T Part 2
         phases.push(current);
         phaseNames.push(currentName);
       }
-      return { phases, phaseNames };
+      return { phases, phaseNames, routineName };
     }
 
     function buildTable(moves, eightCountOffset) {
-      // Build segments: if showDetail and move has subSteps, expand them
+      // Build main segments (always based on full moves)
       const segments = [];
       let beat = 0;
       moves.forEach((mv, i) => {
-        const colorIdx = i % COLORS.length;
-        if (showDetail && mv.subSteps && mv.subSteps.length) {
-          let subBeat = beat;
-          mv.subSteps.forEach(sub => {
-            segments.push({
-              start: subBeat,
-              end: subBeat + sub.count,
-              name: mv.name,
-              subName: sub.name,
-              colorIdx: colorIdx,
-              isSubStep: true
-            });
-            subBeat += sub.count;
-          });
-        } else {
-          segments.push({
-            start: beat,
-            end: beat + mv.count,
-            name: mv.name,
-            colorIdx: colorIdx,
-            isSubStep: false
-          });
-        }
+        segments.push({
+          start: beat,
+          end: beat + mv.count,
+          name: mv.name,
+          colorIdx: i % COLORS.length,
+          subSteps: mv.subSteps || null
+        });
         beat += mv.count;
       });
       const totalBeats = beat;
       const totalEights = Math.ceil(totalBeats / 8);
+
+      // Build sub-step segments (for detail row)
+      const subSegments = [];
+      if (showDetail) {
+        let sBeat = 0;
+        moves.forEach((mv, i) => {
+          if (mv.subSteps && mv.subSteps.length) {
+            mv.subSteps.forEach(sub => {
+              subSegments.push({
+                start: sBeat,
+                end: sBeat + sub.count,
+                name: sub.name,
+                colorIdx: i % COLORS.length
+              });
+              sBeat += sub.count;
+            });
+          } else {
+            // No sub-steps: single empty segment to keep alignment
+            subSegments.push({
+              start: sBeat,
+              end: sBeat + mv.count,
+              name: null,
+              colorIdx: i % COLORS.length
+            });
+            sBeat += mv.count;
+          }
+        });
+      }
 
       let html = '<table><colgroup><col style="width:50px"><col span="8"></colgroup>';
       html += '<thead><tr><th>8拍</th>';
@@ -391,13 +806,21 @@ T Part 2
       for (let row = 0; row < totalEights; row++) {
         const rowStart = row * 8;
         const rowEnd = rowStart + 8;
-        html += `<tr><td class="label">${row + 1 + eightCountOffset}</td>`;
+
+        // Check if any segment in this row has sub-steps
+        const hasDetailRow = showDetail && segments.some(s =>
+          s.start < rowEnd && s.end > rowStart && s.subSteps && s.subSteps.length
+        );
+
+        // Main row
+        const rowspan = hasDetailRow ? 2 : 1;
+        html += `<tr><td class="label" rowspan="${rowspan}">${row + 1 + eightCountOffset}</td>`;
 
         let col = rowStart;
         while (col < rowEnd) {
           const seg = segments.find(s => s.start <= col && col < s.end);
           if (!seg) {
-            html += '<td></td>';
+            html += `<td${hasDetailRow ? ' class="main-row"' : ''}></td>`;
             col++;
             continue;
           }
@@ -422,27 +845,48 @@ T Part 2
             label = '↓ ' + seg.name + ' ↓';
           }
 
-          if (seg.isSubStep && seg.subName) {
-            // Main name on top, sub-step name below in smaller lighter style
-            html += `<td class="${cls} has-sub" colspan="${colspan}">`;
-            html += `<div class="main-name">${label}</div>`;
-            html += `<div class="sub-name">${seg.subName}</div>`;
-            html += '</td>';
-          } else {
-            html += `<td class="${cls}" colspan="${colspan}">${label}</td>`;
-          }
+          const extraCls = hasDetailRow ? ' main-row' : '';
+          html += `<td class="${cls}${extraCls}" colspan="${colspan}">${label}</td>`;
           col += colspan;
         }
         html += '</tr>';
+
+        // Detail row (sub-steps)
+        if (hasDetailRow) {
+          html += '<tr>';
+          let subCol = rowStart;
+          while (subCol < rowEnd) {
+            const sub = subSegments.find(s => s.start <= subCol && subCol < s.end);
+            if (!sub) {
+              html += '<td class="sub-row"></td>';
+              subCol++;
+              continue;
+            }
+
+            const subEndInRow = Math.min(sub.end, rowEnd);
+            const colspan = subEndInRow - subCol;
+            const cls = COLORS[sub.colorIdx];
+
+            if (sub.name) {
+              html += `<td class="${cls} sub-row" colspan="${colspan}">${sub.name}</td>`;
+            } else {
+              html += `<td class="${cls} sub-row" colspan="${colspan}"></td>`;
+            }
+            subCol += colspan;
+          }
+          html += '</tr>';
+        }
       }
       html += '</tbody></table>';
       return { html, totalEights };
     }
 
-    function buildSequence(moves) {
+    function buildSequence(moves, phaseIdx) {
       let html = '<div class="sequence">';
       moves.forEach((mv, i) => {
-        if (i > 0) html += '<br>';
+        html += `<div class="seq-item" draggable="true" data-phase="${phaseIdx}" data-index="${i}" ondragstart="onDragStart(event)" ondragover="onDragOver(event)" ondrop="onDrop(event)" ondragend="onDragEnd(event)" ontouchstart="onTouchStart(event)">`;
+        html += '<span class="drag-handle">☰</span>';
+        html += '<span class="seq-content">';
         html += `<span class="count">${mv.count}</span>${mv.name}`;
         if (showDetail && mv.subSteps && mv.subSteps.length) {
           html += '<div class="seq-substeps">';
@@ -451,21 +895,48 @@ T Part 2
           });
           html += '</div>';
         }
+        html += '</span></div>';
       });
       html += '</div>';
       return html;
     }
 
+    function parseTime(str) {
+      if (!str) return null;
+      const parts = str.trim().split(':');
+      if (parts.length !== 2) return null;
+      const min = parseInt(parts[0]);
+      const sec = parseInt(parts[1]);
+      if (isNaN(min) || isNaN(sec)) return null;
+      return min * 60 + sec;
+    }
+
+    function formatTime(totalSec) {
+      const min = Math.floor(totalSec / 60);
+      const sec = Math.floor(totalSec % 60);
+      return min + ':' + String(sec).padStart(2, '0');
+    }
+
     function render() {
-      const { phases, phaseNames } = parseMoves(inputEl.value);
+      const { phases, phaseNames, routineName } = parseMoves(inputEl.value);
       if (!phases.length) {
         outputEl.innerHTML = '';
         return;
       }
 
+      // Timing calculation
+      const startSec = parseTime(document.getElementById('startTime').value);
+      const bpm = parseFloat(document.getElementById('bpmInput').value);
+      const hasTiming = startSec !== null && bpm > 0;
+      const secPerBeat = hasTiming ? 60 / bpm : 0;
+
       let tableHtml = '';
+      if (routineName) {
+        tableHtml += `<p class="routine-name">${routineName}</p>`;
+      }
       let seqHtml = '';
       let offset = 0;
+      let beatOffset = 0;
 
       phases.forEach((moves, pi) => {
         const name = phaseNames[pi];
@@ -478,24 +949,28 @@ T Part 2
           phaseLabel = '';
         }
 
+        const timeTag = hasTiming ? `<span class="phase-time">${formatTime(startSec + beatOffset * secPerBeat)}</span>` : '';
+
         if (phaseLabel) {
-          tableHtml += `<h2>${phaseLabel}</h2>`;
+          tableHtml += `<h2>${phaseLabel}${timeTag}</h2>`;
         }
         const result = buildTable(moves, offset);
         tableHtml += result.html;
         offset += result.totalEights;
 
+        const phaseBeats = moves.reduce((sum, mv) => sum + mv.count, 0);
+
         if (phaseLabel) {
-          seqHtml += `<h2>${phaseLabel} 動作順序</h2>`;
+          seqHtml += `<h2>${phaseLabel} 動作順序${timeTag}</h2>`;
         } else {
-          seqHtml += `<h2>動作順序</h2>`;
+          seqHtml += `<h2>動作順序${timeTag}</h2>`;
         }
-        seqHtml += buildSequence(moves);
+        seqHtml += buildSequence(moves, pi);
+
+        beatOffset += phaseBeats;
       });
 
-      let html = tableHtml;
-      html += '<p class="note">同色 = 同一個動作 ｜ ↓ = 動作跨越 8 拍邊界延續</p>';
-      html += '<hr>';
+      let html = `<div id="chart-area">${tableHtml}<p class="note">同色 = 同一個動作 ｜ ↓ = 動作跨越 8 拍邊界延續</p></div>`;
       html += seqHtml;
 
       outputEl.innerHTML = html;
