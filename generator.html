@@ -34,6 +34,17 @@
     .input-area {
       margin-bottom: 16px;
     }
+    .input-area.sticky-edit {
+      position: sticky;
+      bottom: 0;
+      background: #fff;
+      padding: 8px 0;
+      z-index: 10;
+      box-shadow: 0 -4px 12px rgba(0,0,0,0.06);
+    }
+    .input-area.sticky-edit textarea {
+      height: 140px;
+    }
     .input-actions {
       margin-top: 8px;
       display: flex;
@@ -697,6 +708,11 @@ T Part 2
 
     inputEl.addEventListener('input', render);
 
+    // Sticky textarea while editing — keeps input pinned to viewport bottom
+    const inputAreaEl = inputEl.closest('.input-area');
+    inputEl.addEventListener('focus', () => inputAreaEl.classList.add('sticky-edit'));
+    inputEl.addEventListener('blur', () => inputAreaEl.classList.remove('sticky-edit'));
+
     function parseMoves(text) {
       const phases = [];
       let current = [];
@@ -918,6 +934,10 @@ T Part 2
     }
 
     function render() {
+      // Scroll anchor: remember where the textarea sits in the viewport,
+      // so chart growth doesn't visually push the edit area around.
+      const anchorBefore = inputEl.getBoundingClientRect().top;
+
       const { phases, phaseNames, routineName } = parseMoves(inputEl.value);
       if (!phases.length) {
         outputEl.innerHTML = '';
@@ -974,6 +994,16 @@ T Part 2
       html += seqHtml;
 
       outputEl.innerHTML = html;
+
+      // Scroll anchor: restore the textarea's relative viewport position.
+      // Skipped while sticky-editing, since the textarea is already pinned.
+      if (!inputAreaEl.classList.contains('sticky-edit')) {
+        const anchorAfter = inputEl.getBoundingClientRect().top;
+        const delta = anchorAfter - anchorBefore;
+        if (Math.abs(delta) > 0.5) {
+          window.scrollBy(0, delta);
+        }
+      }
     }
   </script>
 
