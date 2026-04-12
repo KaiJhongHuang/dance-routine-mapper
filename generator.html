@@ -273,7 +273,7 @@
   <p class="subtitle" id="page-subtitle">輸入動作序列，自動產生色彩表格</p>
 
   <div class="toolbar">
-    <button id="toggleDetail" onclick="toggleDetailView()">顯示細節</button>
+    <button id="toggleDetail" class="active" onclick="toggleDetailView()">隱藏細節</button>
     <button onclick="shareUrl()">分享連結</button>
     <button onclick="exportChart()">匯出圖片</button>
   </div>
@@ -320,7 +320,7 @@
   <script>
     const COLORS = ['c1','c2','c3','c4','c5','c6','c7','c8'];
 
-    let showDetail = false;
+    let showDetail = true;
 
     const PRESETS = {
       default: `Lindy Hop 基本組合
