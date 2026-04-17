@@ -172,15 +172,15 @@
     .save-status.saved { color: #4a9d5f; }
     .save-status.unsaved { color: #d97706; }
 
-    /* Google Sheet panel */
-    .sheet-panel {
+    /* Collapsible panels (Google Sheet + Edit area) */
+    .panel-card {
       margin: 16px 0;
       border: 1px solid #e5e5e5;
       border-radius: 8px;
       padding: 0 12px;
       background: #fafafa;
     }
-    .sheet-panel > summary {
+    .panel-card > summary {
       cursor: pointer;
       padding: 10px 0;
       font-size: 13px;
@@ -188,17 +188,17 @@
       font-weight: 600;
       list-style: none;
     }
-    .sheet-panel > summary::-webkit-details-marker { display: none; }
-    .sheet-panel > summary::before {
+    .panel-card > summary::-webkit-details-marker { display: none; }
+    .panel-card > summary::before {
       content: '▸ ';
       display: inline-block;
       transition: transform 0.15s;
     }
-    .sheet-panel[open] > summary::before { transform: rotate(90deg); }
-    .sheet-panel-body {
+    .panel-card[open] > summary::before { transform: rotate(90deg); }
+    .panel-body {
       padding: 4px 0 12px;
     }
-    .sheet-panel-body input[type="url"] {
+    .panel-body input[type="url"] {
       width: 100%;
       padding: 8px 10px;
       font-size: 13px;
@@ -207,7 +207,7 @@
       box-sizing: border-box;
       font-family: monospace;
     }
-    .sheet-panel-body input[type="url"]:focus {
+    .panel-body input[type="url"]:focus {
       outline: none;
       border-color: #666;
     }
@@ -253,6 +253,58 @@
       border-radius: 3px;
       font-size: 11px;
     }
+
+    /* Tab bar (sheet tabs) */
+    .tab-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin: 10px 0 4px;
+    }
+    .tab-label {
+      font-size: 12px;
+      color: #888;
+      align-self: center;
+      margin-right: 4px;
+    }
+    .tab-btn {
+      padding: 4px 10px;
+      font-size: 13px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      background: #fff;
+      color: #555;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-family: inherit;
+    }
+    .tab-btn:hover { border-color: #888; color: #333; }
+    .tab-btn.active {
+      background: #2563eb;
+      color: #fff;
+      border-color: #2563eb;
+    }
+    .tab-btn .tab-del {
+      opacity: 0.5;
+      font-size: 14px;
+      margin-left: 4px;
+      padding: 0 2px;
+      border-radius: 3px;
+    }
+    .tab-btn .tab-del:hover { opacity: 1; background: rgba(0,0,0,0.15); }
+    .tab-add {
+      padding: 4px 10px;
+      font-size: 13px;
+      border: 1px dashed #bbb;
+      border-radius: 6px;
+      background: transparent;
+      color: #888;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .tab-add:hover { border-color: #666; color: #333; }
 
     /* Routine name */
     .routine-name {
@@ -376,66 +428,31 @@
 
   <div class="nav"><a href="index.html">&larr; 回首頁</a></div>
   <h1 id="page-title">排舞圖表產生器</h1>
-  <p class="subtitle" id="page-subtitle">輸入動作序列，自動產生色彩表格</p>
+  <p class="subtitle" id="page-subtitle">在 Google 試算表撰寫舞序，一鍵同步產生色彩圖表</p>
 
-  <div class="toolbar">
-    <button id="toggleDetail" class="active" onclick="toggleDetailView()">隱藏細節</button>
-    <button onclick="shareUrl()">分享連結</button>
-    <button onclick="exportChart()">匯出圖片</button>
-    <span id="saveStatus" class="save-status"></span>
-  </div>
-  <div id="output"></div>
-
-  <hr>
-  <div class="help">
-    第一行為舞序名稱，<code>T 段落名稱</code> 分隔段落，每行 <code>拍數 動作名稱</code><br>
-    縮排行為子步法，點「顯示細節」展開
-  </div>
-  <div class="templates">
-    <span class="tpl-label">插入：</span>
-    <button onclick="insertTemplate('section')">標題</button>
-    <button onclick="insertTemplate('2c')">2 拍</button>
-    <button onclick="insertTemplate('4c')">4 拍</button>
-    <button onclick="insertTemplate('6c')">6 拍</button>
-    <button onclick="insertTemplate('8c')">8 拍</button>
-    <button onclick="insertTemplate('sub')">2 拍子步法</button>
-    <button onclick="insertNewline()">換行</button>
-    <button onclick="deleteLine()">刪行</button>
-  </div>
-  <div class="templates">
-    <span class="tpl-label">動作：</span>
-    <button onclick="insertTemplate('sendout')">Send Out</button>
-    <button onclick="insertTemplate('change')">Change Place</button>
-    <button onclick="insertTemplate('callback')">Call Back</button>
-    <button onclick="insertTemplate('swingout')">Swing Out</button>
-  </div>
-  <div class="input-area">
-    <textarea id="input" placeholder="舞序名稱&#10;T 第一段&#10;6 6 Count Basic&#10;6 Send Out&#10;&#10;T 第二段&#10;8 Swing Out&#10;8 Texas Tommy"></textarea>
-    <div class="input-actions">
-      <button onclick="copyText()">複製舞序文字</button>
-    </div>
-  </div>
-
-  <details class="sheet-panel" id="sheetPanel">
+  <details class="panel-card" id="sheetPanel" open>
     <summary>Google 試算表整合</summary>
-    <div class="sheet-panel-body">
+    <div class="panel-body">
       <input type="url" id="sheetUrlInput" placeholder="貼上 Google Sheet 連結（編輯或已發布的連結皆可）">
+      <div class="tab-bar" id="sheetTabs">
+        <span class="tab-label">分頁：</span>
+      </div>
       <div class="sheet-actions">
         <button class="primary" onclick="loadFromSheet()">從試算表載入</button>
         <button onclick="saveSheetUrl()">儲存連結</button>
         <button onclick="openSheet()">開啟試算表</button>
+        <button onclick="detectTabs()">自動偵測分頁</button>
         <button onclick="clearSheetUrl()">清除</button>
       </div>
       <div id="sheetStatus" class="sheet-status"></div>
       <div class="sheet-help">
-        <strong>快速開始：</strong>下載範本 → Google Sheet 檔案 → 匯入 → 上傳：
-        <a href="templates/lindy-hop-template.csv" download>雙欄+子步法範本</a> ｜
-        <a href="templates/lindy-hop-simple.csv" download>單欄簡易範本</a><br>
-        <br>
-        <strong>使用方式：</strong><br>
-        1. 在 Google Sheet 中，檔案 → 共用 → <strong>發布到網路</strong> → 發布（僅檢視、不影響編輯權限）<br>
-        2. 把 sheet 連結貼到上面，按「儲存連結」<br>
-        3. 在 sheet 編輯舞序後，回到這裡按「從試算表載入」即可同步<br>
+        <strong>使用流程：</strong><br>
+        1. 在 Google Sheet 撰寫舞序（參考範本：
+        <a href="templates/lindy-hop-template.csv" download>雙欄+子步法</a> ｜
+        <a href="templates/lindy-hop-simple.csv" download>單欄簡易</a>）<br>
+        2. Sheet → 檔案 → 共用 → <strong>發布到網路</strong> → 發布（僅檢視，不影響編輯權限）<br>
+        3. 把 sheet 連結貼到上面，按「儲存連結」，再按「自動偵測分頁」抓出所有工作表<br>
+        4. 每個工作表分頁 = 一支舞；點分頁鈕切換、編完按「從試算表載入」同步<br>
         <br>
         <strong>Sheet 格式：</strong>每列一行舞序文字。支援：
         <ul style="margin:4px 0 0 18px; padding:0;">
@@ -448,13 +465,55 @@
     </div>
   </details>
 
+  <details class="panel-card" id="editPanel">
+    <summary>即時編輯（進階）</summary>
+    <div class="panel-body">
+      <div class="help">
+        第一行為舞序名稱，<code>T 段落名稱</code> 分隔段落，每行 <code>拍數 動作名稱</code><br>
+        縮排行為子步法，點「顯示細節」展開。此區為手動編輯，Sheet 的內容按「從試算表載入」會覆蓋。
+      </div>
+      <div class="templates">
+        <span class="tpl-label">插入：</span>
+        <button onclick="insertTemplate('section')">標題</button>
+        <button onclick="insertTemplate('2c')">2 拍</button>
+        <button onclick="insertTemplate('4c')">4 拍</button>
+        <button onclick="insertTemplate('6c')">6 拍</button>
+        <button onclick="insertTemplate('8c')">8 拍</button>
+        <button onclick="insertTemplate('sub')">2 拍子步法</button>
+        <button onclick="insertNewline()">換行</button>
+        <button onclick="deleteLine()">刪行</button>
+      </div>
+      <div class="templates">
+        <span class="tpl-label">動作：</span>
+        <button onclick="insertTemplate('sendout')">Send Out</button>
+        <button onclick="insertTemplate('change')">Change Place</button>
+        <button onclick="insertTemplate('callback')">Call Back</button>
+        <button onclick="insertTemplate('swingout')">Swing Out</button>
+      </div>
+      <div class="input-area">
+        <textarea id="input" placeholder="舞序名稱&#10;T 第一段&#10;6 6 Count Basic&#10;6 Send Out&#10;&#10;T 第二段&#10;8 Swing Out&#10;8 Texas Tommy"></textarea>
+        <div class="input-actions">
+          <button onclick="copyText()">複製舞序文字</button>
+        </div>
+      </div>
+    </div>
+  </details>
+
+  <div class="toolbar">
+    <button id="toggleDetail" class="active" onclick="toggleDetailView()">隱藏細節</button>
+    <button onclick="shareUrl()">分享連結</button>
+    <button onclick="exportChart()">匯出圖片</button>
+    <span id="saveStatus" class="save-status"></span>
+  </div>
+  <div id="output"></div>
+
   <div class="timing-area">
     <span class="tpl-label">時間軸：</span>
     <label>開始 <input type="text" id="startTime" value="0:00" oninput="render()"></label>
     <label>BPM <input type="number" id="bpmInput" value="150" min="1" oninput="render()"></label>
   </div>
 
-  <div class="footer">v1.2 — Kai, built with Claude Code ｜ <a href="https://forms.gle/X1pvyDiYAPpw9otMA" target="_blank">許願 & 回報 Bug</a></div>
+  <div class="footer">v2.0 — Kai, built with Claude Code ｜ <a href="https://forms.gle/X1pvyDiYAPpw9otMA" target="_blank">許願 & 回報 Bug</a></div>
 
   <script>
     const COLORS = ['c1','c2','c3','c4','c5','c6','c7','c8'];
@@ -591,9 +650,13 @@ T Part 2
 
     // --- Google Sheet integration (read-only) ---
     const SHEET_URL_KEY = 'drm:sheet-url';
+    const SHEET_TABS_KEY = 'drm:sheet-tabs';
+    const SHEET_ACTIVE_GID_KEY = 'drm:sheet-active-gid';
+    const DEFAULT_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1C8lRtNYPcp5YstFur6KwGF83W1sYPq9YCRA45TWQ2fI/edit?usp=sharing';
     const sheetUrlInput = document.getElementById('sheetUrlInput');
     const sheetStatusEl = document.getElementById('sheetStatus');
     const sheetPanelEl = document.getElementById('sheetPanel');
+    const sheetTabsEl = document.getElementById('sheetTabs');
 
     function setSheetStatus(text, cls) {
       sheetStatusEl.textContent = text;
@@ -605,37 +668,169 @@ T Part 2
       return m ? m[1] : '0';
     }
 
-    // Convert a Google Sheet edit or publish URL to a public CSV endpoint.
-    // Returns null if URL is not a recognizable Google Sheet URL.
-    //
-    // Two endpoints, each with tradeoffs:
-    //   /pub?output=csv   — raw CSV, no header/type inference (PREFERRED).
-    //                       Requires sheet to be "Published to the web",
-    //                       which produces a /d/e/<pubId>/ style URL.
-    //   /gviz/tq?tqx=out:csv&headers=0
-    //                     — works for "Anyone with the link can view" sheets,
-    //                       but gviz still infers column types and may drop
-    //                       string values in mostly-numeric columns.
-    //   /export?format=csv requires an authenticated session; it 302s to a
-    //                     googleusercontent.com URL that rejects anonymous
-    //                     fetches, so we don't use it here.
-    function sheetUrlToCsvUrl(url) {
-      if (!url) return null;
-      // Published URL: /spreadsheets/d/e/<pubId>/ → /pub?output=csv (preferred)
+    function extractSheetId(url) {
       let m = url.match(/\/spreadsheets\/d\/e\/([^\/?#]+)/);
-      if (m) {
-        return `https://docs.google.com/spreadsheets/d/e/${m[1]}/pub?output=csv&gid=${extractGid(url)}`;
-      }
-      // Edit URL fallback: /spreadsheets/d/<id>/ → gviz tq
+      if (m) return { kind: 'pub', id: m[1] };
       m = url.match(/\/spreadsheets\/d\/([^\/?#]+)/);
-      if (m) {
-        return `https://docs.google.com/spreadsheets/d/${m[1]}/gviz/tq?tqx=out:csv&headers=0&gid=${extractGid(url)}`;
-      }
+      if (m) return { kind: 'edit', id: m[1] };
       return null;
     }
 
     function isPublishedUrl(url) {
       return /\/spreadsheets\/d\/e\//.test(url || '');
+    }
+
+    // Convert a Google Sheet URL + gid to a public CSV endpoint.
+    //   /pub?output=csv   — raw CSV, no header/type inference (PREFERRED).
+    //   /gviz/tq?tqx=out:csv&headers=0 — fallback for "anyone with link" sheets,
+    //     but gviz type-infers columns and may drop strings in numeric cols.
+    function sheetUrlToCsvUrl(url, gid) {
+      const id = extractSheetId(url);
+      if (!id) return null;
+      gid = gid || '0';
+      if (id.kind === 'pub') {
+        return `https://docs.google.com/spreadsheets/d/e/${id.id}/pub?output=csv&gid=${gid}`;
+      }
+      return `https://docs.google.com/spreadsheets/d/${id.id}/gviz/tq?tqx=out:csv&headers=0&gid=${gid}`;
+    }
+
+    // --- Tab state ---
+    function loadTabs() {
+      try {
+        const raw = localStorage.getItem(SHEET_TABS_KEY);
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (e) { return []; }
+    }
+
+    function saveTabs(tabs) {
+      try { localStorage.setItem(SHEET_TABS_KEY, JSON.stringify(tabs)); } catch (e) {}
+    }
+
+    function getActiveGid() {
+      return localStorage.getItem(SHEET_ACTIVE_GID_KEY)
+        || extractGid(sheetUrlInput.value || '')
+        || '0';
+    }
+
+    function setActiveGid(gid) {
+      try { localStorage.setItem(SHEET_ACTIVE_GID_KEY, gid); } catch (e) {}
+    }
+
+    function renderTabs() {
+      const tabs = loadTabs();
+      const activeGid = getActiveGid();
+      // Clear everything after the label span
+      while (sheetTabsEl.children.length > 1) sheetTabsEl.removeChild(sheetTabsEl.lastChild);
+      tabs.forEach((tab, i) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'tab-btn' + (String(tab.gid) === String(activeGid) ? ' active' : '');
+        btn.title = 'gid=' + tab.gid;
+        btn.textContent = tab.name;
+        btn.addEventListener('click', (e) => {
+          if (e.target.classList.contains('tab-del')) return;
+          switchTab(tab.gid);
+        });
+        const del = document.createElement('span');
+        del.className = 'tab-del';
+        del.textContent = '×';
+        del.title = '刪除分頁';
+        del.addEventListener('click', (e) => {
+          e.stopPropagation();
+          deleteTab(i);
+        });
+        btn.appendChild(del);
+        sheetTabsEl.appendChild(btn);
+      });
+      const addBtn = document.createElement('button');
+      addBtn.type = 'button';
+      addBtn.className = 'tab-add';
+      addBtn.textContent = '+ 新增分頁';
+      addBtn.addEventListener('click', addTab);
+      sheetTabsEl.appendChild(addBtn);
+    }
+
+    function switchTab(gid) {
+      setActiveGid(String(gid));
+      renderTabs();
+      loadFromSheet();
+    }
+
+    function addTab() {
+      const name = prompt('分頁名稱（會顯示在按鈕上）：');
+      if (!name || !name.trim()) return;
+      const gidStr = prompt('gid（Sheet 網址裡 gid=XXX 的數字；第一個分頁是 0）：', '0');
+      if (gidStr === null) return;
+      const gid = String(gidStr).trim();
+      if (!/^[0-9]+$/.test(gid)) { alert('gid 必須是數字'); return; }
+      const tabs = loadTabs();
+      if (tabs.some(t => String(t.gid) === gid)) { alert('已有相同 gid 的分頁'); return; }
+      tabs.push({ name: name.trim(), gid });
+      saveTabs(tabs);
+      renderTabs();
+    }
+
+    function deleteTab(idx) {
+      const tabs = loadTabs();
+      if (!tabs[idx]) return;
+      if (!confirm('刪除分頁「' + tabs[idx].name + '」？')) return;
+      tabs.splice(idx, 1);
+      saveTabs(tabs);
+      renderTabs();
+    }
+
+    // Best-effort auto-discovery of tab names + gids by parsing the sheet's
+    // published HTML. Only works when the sheet is "Published to the web".
+    async function detectTabs() {
+      const url = sheetUrlInput.value.trim() || localStorage.getItem(SHEET_URL_KEY) || '';
+      if (!url) { setSheetStatus('請先貼上 Sheet 連結', 'error'); return; }
+      const id = extractSheetId(url);
+      if (!id) { setSheetStatus('無法辨識連結', 'error'); return; }
+      if (id.kind !== 'pub') {
+        setSheetStatus('自動偵測只支援已「發布到網路」的連結（/d/e/... 格式）', 'error');
+        return;
+      }
+      setSheetStatus('偵測分頁中…');
+      try {
+        const res = await fetch(`https://docs.google.com/spreadsheets/d/e/${id.id}/pubhtml`);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const html = await res.text();
+        // The pubhtml page embeds a sheet map we can extract. Two patterns
+        // appear in practice: sheet-menu links and a bootstrap JSON blob.
+        const tabs = parseTabsFromPubhtml(html);
+        if (!tabs.length) throw new Error('找不到分頁資訊');
+        saveTabs(tabs);
+        if (!tabs.some(t => String(t.gid) === String(getActiveGid()))) {
+          setActiveGid(tabs[0].gid);
+        }
+        renderTabs();
+        setSheetStatus('偵測到 ' + tabs.length + ' 個分頁', 'ok');
+      } catch (e) {
+        setSheetStatus('偵測失敗：' + e.message + '（可手動新增分頁）', 'error');
+      }
+    }
+
+    function parseTabsFromPubhtml(html) {
+      const tabs = [];
+      const seen = new Set();
+      // Pattern 1: <li id="sheet-button-GID" ...><a ...>NAME</a></li>
+      const liRe = /<li[^>]*id="sheet-button-(\d+)"[^>]*>[\s\S]*?<a[^>]*>([\s\S]*?)<\/a>/g;
+      let m;
+      while ((m = liRe.exec(html)) !== null) {
+        const gid = m[1];
+        const name = m[2].replace(/<[^>]+>/g, '').trim();
+        if (name && !seen.has(gid)) { seen.add(gid); tabs.push({ name, gid }); }
+      }
+      if (tabs.length) return tabs;
+      // Pattern 2: gid param in anchor href + visible label
+      const aRe = /<a[^>]*href="[^"]*[?&]gid=(\d+)[^"]*"[^>]*>([\s\S]*?)<\/a>/g;
+      while ((m = aRe.exec(html)) !== null) {
+        const gid = m[1];
+        const name = m[2].replace(/<[^>]+>/g, '').trim();
+        if (name && !seen.has(gid)) { seen.add(gid); tabs.push({ name, gid }); }
+      }
+      return tabs;
     }
 
     // Minimal RFC-4180-ish CSV parser (handles quoted fields, escaped quotes, CRLF).
@@ -692,12 +887,19 @@ T Part 2
         setSheetStatus('已清除連結');
         return;
       }
-      if (!sheetUrlToCsvUrl(url)) {
+      if (!extractSheetId(url)) {
         setSheetStatus('無法辨識連結，請確認是 Google Sheet 連結', 'error');
         return;
       }
       try {
+        const previous = localStorage.getItem(SHEET_URL_KEY);
         localStorage.setItem(SHEET_URL_KEY, url);
+        // When switching to a new sheet, reset tabs + active gid
+        if (previous && extractSheetId(previous)?.id !== extractSheetId(url)?.id) {
+          saveTabs([]);
+          setActiveGid(extractGid(url) || '0');
+          renderTabs();
+        }
         setSheetStatus('連結已儲存於此瀏覽器', 'ok');
       } catch (e) {
         setSheetStatus('儲存失敗：' + e.message, 'error');
@@ -707,19 +909,31 @@ T Part 2
     function clearSheetUrl() {
       sheetUrlInput.value = '';
       localStorage.removeItem(SHEET_URL_KEY);
-      setSheetStatus('已清除連結');
+      localStorage.removeItem(SHEET_TABS_KEY);
+      localStorage.removeItem(SHEET_ACTIVE_GID_KEY);
+      renderTabs();
+      setSheetStatus('已清除連結與分頁');
     }
 
     function openSheet() {
       const url = sheetUrlInput.value.trim() || localStorage.getItem(SHEET_URL_KEY);
       if (!url) { setSheetStatus('請先貼上 Sheet 連結', 'error'); return; }
-      window.open(url, '_blank', 'noopener');
+      // Open the current tab's gid if possible
+      const gid = getActiveGid();
+      let target = url;
+      if (gid && !/[#?&]gid=/.test(url)) {
+        target = url + (url.includes('#') ? '&' : '#') + 'gid=' + gid;
+      } else if (gid) {
+        target = url.replace(/([#?&])gid=[0-9]+/, '$1gid=' + gid);
+      }
+      window.open(target, '_blank', 'noopener');
     }
 
     async function loadFromSheet() {
       const url = sheetUrlInput.value.trim() || localStorage.getItem(SHEET_URL_KEY) || '';
       if (!url) { setSheetStatus('請先貼上 Sheet 連結', 'error'); return; }
-      const csvUrl = sheetUrlToCsvUrl(url);
+      const gid = getActiveGid();
+      const csvUrl = sheetUrlToCsvUrl(url, gid);
       if (!csvUrl) { setSheetStatus('無法辨識連結，請確認是 Google Sheet 連結', 'error'); return; }
       setSheetStatus('載入中…');
       try {
@@ -746,21 +960,22 @@ T Part 2
         render();
         const t = new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' });
         const note = isPublishedUrl(url) ? '' : '（建議改用發布到網路的連結以避免字串遺失）';
-        setSheetStatus('已從試算表載入（' + t + '）' + note, 'ok');
+        setSheetStatus('已從試算表載入（' + t + '，gid=' + gid + '）' + note, 'ok');
       } catch (e) {
         setSheetStatus('載入失敗：' + e.message, 'error');
       }
     }
 
-    // Restore saved URL on load, auto-expand panel if URL exists
+    // Restore saved URL (or fall back to default), render tabs
     (function initSheetPanel() {
-      try {
-        const saved = localStorage.getItem(SHEET_URL_KEY);
-        if (saved) {
-          sheetUrlInput.value = saved;
-          sheetPanelEl.open = true;
-        }
-      } catch (e) {}
+      let saved = null;
+      try { saved = localStorage.getItem(SHEET_URL_KEY); } catch (e) {}
+      const url = saved || DEFAULT_SHEET_URL;
+      sheetUrlInput.value = url;
+      if (!saved) {
+        try { localStorage.setItem(SHEET_URL_KEY, DEFAULT_SHEET_URL); } catch (e) {}
+      }
+      renderTabs();
     })();
 
     // Load from URL: shared data takes priority, then preset, then default
