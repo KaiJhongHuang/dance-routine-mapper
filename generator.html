@@ -607,6 +607,11 @@ T Part 2
 
     // Convert a Google Sheet edit or publish URL to a public CSV endpoint.
     // Returns null if URL is not a recognizable Google Sheet URL.
+    //
+    // We avoid gviz/tq?tqx=out:csv because it auto-detects multi-row headers
+    // (merging row 1+2) and infers column data types (dropping strings in
+    // columns it decides are numeric). /export?format=csv is the raw endpoint
+    // used by "File → Download → CSV" — no header or type inference.
     function sheetUrlToCsvUrl(url) {
       if (!url) return null;
       // Published URL: /spreadsheets/d/e/<pubId>/
@@ -617,7 +622,7 @@ T Part 2
       // Edit URL: /spreadsheets/d/<id>/
       m = url.match(/\/spreadsheets\/d\/([^\/?#]+)/);
       if (m) {
-        return `https://docs.google.com/spreadsheets/d/${m[1]}/gviz/tq?tqx=out:csv&gid=${extractGid(url)}`;
+        return `https://docs.google.com/spreadsheets/d/${m[1]}/export?format=csv&gid=${extractGid(url)}`;
       }
       return null;
     }
