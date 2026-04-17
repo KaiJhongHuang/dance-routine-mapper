@@ -172,6 +172,88 @@
     .save-status.saved { color: #4a9d5f; }
     .save-status.unsaved { color: #d97706; }
 
+    /* Google Sheet panel */
+    .sheet-panel {
+      margin: 16px 0;
+      border: 1px solid #e5e5e5;
+      border-radius: 8px;
+      padding: 0 12px;
+      background: #fafafa;
+    }
+    .sheet-panel > summary {
+      cursor: pointer;
+      padding: 10px 0;
+      font-size: 13px;
+      color: #555;
+      font-weight: 600;
+      list-style: none;
+    }
+    .sheet-panel > summary::-webkit-details-marker { display: none; }
+    .sheet-panel > summary::before {
+      content: '▸ ';
+      display: inline-block;
+      transition: transform 0.15s;
+    }
+    .sheet-panel[open] > summary::before { transform: rotate(90deg); }
+    .sheet-panel-body {
+      padding: 4px 0 12px;
+    }
+    .sheet-panel-body input[type="url"] {
+      width: 100%;
+      padding: 8px 10px;
+      font-size: 13px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      box-sizing: border-box;
+      font-family: monospace;
+    }
+    .sheet-panel-body input[type="url"]:focus {
+      outline: none;
+      border-color: #666;
+    }
+    .sheet-actions {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+    .sheet-actions button {
+      padding: 5px 12px;
+      font-size: 13px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      background: #fff;
+      color: #555;
+      cursor: pointer;
+    }
+    .sheet-actions button:hover { border-color: #888; color: #333; }
+    .sheet-actions button.primary {
+      background: #2563eb;
+      color: #fff;
+      border-color: #2563eb;
+    }
+    .sheet-actions button.primary:hover { background: #1d4ed8; border-color: #1d4ed8; }
+    .sheet-status {
+      font-size: 12px;
+      margin-top: 8px;
+      color: #999;
+      min-height: 16px;
+    }
+    .sheet-status.ok { color: #4a9d5f; }
+    .sheet-status.error { color: #d97706; }
+    .sheet-help {
+      font-size: 11px;
+      color: #999;
+      line-height: 1.7;
+      margin-top: 10px;
+    }
+    .sheet-help code {
+      background: #eee;
+      padding: 1px 4px;
+      border-radius: 3px;
+      font-size: 11px;
+    }
+
     /* Routine name */
     .routine-name {
       font-size: 20px;
@@ -334,6 +416,34 @@
     </div>
   </div>
 
+  <details class="sheet-panel" id="sheetPanel">
+    <summary>Google 試算表整合</summary>
+    <div class="sheet-panel-body">
+      <input type="url" id="sheetUrlInput" placeholder="貼上 Google Sheet 連結（編輯或已發布的連結皆可）">
+      <div class="sheet-actions">
+        <button class="primary" onclick="loadFromSheet()">從試算表載入</button>
+        <button onclick="saveSheetUrl()">儲存連結</button>
+        <button onclick="openSheet()">開啟試算表</button>
+        <button onclick="clearSheetUrl()">清除</button>
+      </div>
+      <div id="sheetStatus" class="sheet-status"></div>
+      <div class="sheet-help">
+        <strong>使用方式：</strong><br>
+        1. 在 Google Sheet 中，檔案 → 共用 → <strong>發布到網路</strong> → 發布（僅檢視、不影響編輯權限）<br>
+        2. 把 sheet 連結貼到上面，按「儲存連結」<br>
+        3. 在 sheet 編輯舞序後，回到這裡按「從試算表載入」即可同步<br>
+        <br>
+        <strong>Sheet 格式：</strong>每列一行舞序文字。支援：
+        <ul style="margin:4px 0 0 18px; padding:0;">
+          <li>單欄：整列寫 <code>6 Send Out</code></li>
+          <li>雙欄：A 欄 <code>6</code>、B 欄 <code>Send Out</code>（會自動合併）</li>
+          <li>段落：<code>T 第一段</code>（在 A 欄或跨欄皆可）</li>
+          <li>子步法：A 欄留空、B 欄填拍數、C 欄填動作名（會自動縮排）</li>
+        </ul>
+      </div>
+    </div>
+  </details>
+
   <div class="timing-area">
     <span class="tpl-label">時間軸：</span>
     <label>開始 <input type="text" id="startTime" value="0:00" oninput="render()"></label>
@@ -474,6 +584,158 @@ T Part 2
         return '';
       }
     });
+
+    // --- Google Sheet integration (read-only) ---
+    const SHEET_URL_KEY = 'drm:sheet-url';
+    const sheetUrlInput = document.getElementById('sheetUrlInput');
+    const sheetStatusEl = document.getElementById('sheetStatus');
+    const sheetPanelEl = document.getElementById('sheetPanel');
+
+    function setSheetStatus(text, cls) {
+      sheetStatusEl.textContent = text;
+      sheetStatusEl.className = 'sheet-status' + (cls ? ' ' + cls : '');
+    }
+
+    function extractGid(url) {
+      const m = url.match(/[#?&]gid=([0-9]+)/);
+      return m ? m[1] : '0';
+    }
+
+    // Convert a Google Sheet edit or publish URL to a public CSV endpoint.
+    // Returns null if URL is not a recognizable Google Sheet URL.
+    function sheetUrlToCsvUrl(url) {
+      if (!url) return null;
+      // Published URL: /spreadsheets/d/e/<pubId>/
+      let m = url.match(/\/spreadsheets\/d\/e\/([^\/?#]+)/);
+      if (m) {
+        return `https://docs.google.com/spreadsheets/d/e/${m[1]}/pub?output=csv&gid=${extractGid(url)}`;
+      }
+      // Edit URL: /spreadsheets/d/<id>/
+      m = url.match(/\/spreadsheets\/d\/([^\/?#]+)/);
+      if (m) {
+        return `https://docs.google.com/spreadsheets/d/${m[1]}/gviz/tq?tqx=out:csv&gid=${extractGid(url)}`;
+      }
+      return null;
+    }
+
+    // Minimal RFC-4180-ish CSV parser (handles quoted fields, escaped quotes, CRLF).
+    function parseCSV(text) {
+      const rows = [];
+      let row = [];
+      let field = '';
+      let inQuotes = false;
+      for (let i = 0; i < text.length; i++) {
+        const c = text[i];
+        if (inQuotes) {
+          if (c === '"') {
+            if (text[i + 1] === '"') { field += '"'; i++; }
+            else inQuotes = false;
+          } else {
+            field += c;
+          }
+        } else {
+          if (c === '"') inQuotes = true;
+          else if (c === ',') { row.push(field); field = ''; }
+          else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+          else if (c === '\r') { /* skip */ }
+          else field += c;
+        }
+      }
+      if (field !== '' || row.length > 0) {
+        row.push(field);
+        rows.push(row);
+      }
+      return rows;
+    }
+
+    // Convert a parsed CSV row to a single textarea line.
+    // - Empty row → ''
+    // - First cell non-empty → join all non-empty cells with space (trimmed)
+    // - First cell empty but later cells filled → prepend '  ' (sub-step indent)
+    function csvRowToLine(cells) {
+      let last = -1;
+      for (let i = cells.length - 1; i >= 0; i--) {
+        if (cells[i].trim() !== '') { last = i; break; }
+      }
+      if (last === -1) return '';
+      const trimmed = cells.slice(0, last + 1).map(c => c.trim());
+      if (trimmed[0] === '') {
+        return '  ' + trimmed.slice(1).filter(c => c !== '').join(' ');
+      }
+      return trimmed.filter(c => c !== '').join(' ');
+    }
+
+    function saveSheetUrl() {
+      const url = sheetUrlInput.value.trim();
+      if (!url) {
+        localStorage.removeItem(SHEET_URL_KEY);
+        setSheetStatus('已清除連結');
+        return;
+      }
+      if (!sheetUrlToCsvUrl(url)) {
+        setSheetStatus('無法辨識連結，請確認是 Google Sheet 連結', 'error');
+        return;
+      }
+      try {
+        localStorage.setItem(SHEET_URL_KEY, url);
+        setSheetStatus('連結已儲存於此瀏覽器', 'ok');
+      } catch (e) {
+        setSheetStatus('儲存失敗：' + e.message, 'error');
+      }
+    }
+
+    function clearSheetUrl() {
+      sheetUrlInput.value = '';
+      localStorage.removeItem(SHEET_URL_KEY);
+      setSheetStatus('已清除連結');
+    }
+
+    function openSheet() {
+      const url = sheetUrlInput.value.trim() || localStorage.getItem(SHEET_URL_KEY);
+      if (!url) { setSheetStatus('請先貼上 Sheet 連結', 'error'); return; }
+      window.open(url, '_blank', 'noopener');
+    }
+
+    async function loadFromSheet() {
+      const url = sheetUrlInput.value.trim() || localStorage.getItem(SHEET_URL_KEY) || '';
+      if (!url) { setSheetStatus('請先貼上 Sheet 連結', 'error'); return; }
+      const csvUrl = sheetUrlToCsvUrl(url);
+      if (!csvUrl) { setSheetStatus('無法辨識連結，請確認是 Google Sheet 連結', 'error'); return; }
+      setSheetStatus('載入中…');
+      try {
+        const res = await fetch(csvUrl, { redirect: 'follow' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const ct = res.headers.get('content-type') || '';
+        const body = await res.text();
+        if (ct.includes('text/html') || body.trim().startsWith('<')) {
+          throw new Error('回傳非 CSV，sheet 可能未「發布到網路」');
+        }
+        const rows = parseCSV(body);
+        const lines = rows.map(csvRowToLine);
+        while (lines.length && lines[lines.length - 1] === '') lines.pop();
+        const text = lines.join('\n');
+        if (!text) throw new Error('試算表內容為空');
+        inputEl.value = text;
+        lastExportedContent = text;
+        autosaveNow();
+        render();
+        const t = new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' });
+        setSheetStatus('已從試算表載入（' + t + '）', 'ok');
+      } catch (e) {
+        setSheetStatus('載入失敗：' + e.message, 'error');
+      }
+    }
+
+    // Restore saved URL on load, auto-expand panel if URL exists
+    (function initSheetPanel() {
+      try {
+        const saved = localStorage.getItem(SHEET_URL_KEY);
+        if (saved) {
+          sheetUrlInput.value = saved;
+          sheetPanelEl.open = true;
+        }
+      } catch (e) {}
+    })();
 
     // Load from URL: shared data takes priority, then preset, then default
     const params = new URLSearchParams(window.location.search);
