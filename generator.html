@@ -608,23 +608,34 @@ T Part 2
     // Convert a Google Sheet edit or publish URL to a public CSV endpoint.
     // Returns null if URL is not a recognizable Google Sheet URL.
     //
-    // We avoid gviz/tq?tqx=out:csv because it auto-detects multi-row headers
-    // (merging row 1+2) and infers column data types (dropping strings in
-    // columns it decides are numeric). /export?format=csv is the raw endpoint
-    // used by "File → Download → CSV" — no header or type inference.
+    // Two endpoints, each with tradeoffs:
+    //   /pub?output=csv   — raw CSV, no header/type inference (PREFERRED).
+    //                       Requires sheet to be "Published to the web",
+    //                       which produces a /d/e/<pubId>/ style URL.
+    //   /gviz/tq?tqx=out:csv&headers=0
+    //                     — works for "Anyone with the link can view" sheets,
+    //                       but gviz still infers column types and may drop
+    //                       string values in mostly-numeric columns.
+    //   /export?format=csv requires an authenticated session; it 302s to a
+    //                     googleusercontent.com URL that rejects anonymous
+    //                     fetches, so we don't use it here.
     function sheetUrlToCsvUrl(url) {
       if (!url) return null;
-      // Published URL: /spreadsheets/d/e/<pubId>/
+      // Published URL: /spreadsheets/d/e/<pubId>/ → /pub?output=csv (preferred)
       let m = url.match(/\/spreadsheets\/d\/e\/([^\/?#]+)/);
       if (m) {
         return `https://docs.google.com/spreadsheets/d/e/${m[1]}/pub?output=csv&gid=${extractGid(url)}`;
       }
-      // Edit URL: /spreadsheets/d/<id>/
+      // Edit URL fallback: /spreadsheets/d/<id>/ → gviz tq
       m = url.match(/\/spreadsheets\/d\/([^\/?#]+)/);
       if (m) {
-        return `https://docs.google.com/spreadsheets/d/${m[1]}/export?format=csv&gid=${extractGid(url)}`;
+        return `https://docs.google.com/spreadsheets/d/${m[1]}/gviz/tq?tqx=out:csv&headers=0&gid=${extractGid(url)}`;
       }
       return null;
+    }
+
+    function isPublishedUrl(url) {
+      return /\/spreadsheets\/d\/e\//.test(url || '');
     }
 
     // Minimal RFC-4180-ish CSV parser (handles quoted fields, escaped quotes, CRLF).
@@ -713,11 +724,16 @@ T Part 2
       setSheetStatus('載入中…');
       try {
         const res = await fetch(csvUrl, { redirect: 'follow' });
-        if (!res.ok) throw new Error('HTTP ' + res.status);
+        if (!res.ok) {
+          if (!isPublishedUrl(url)) {
+            throw new Error('HTTP ' + res.status + '（請將 sheet「發布到網路」並改貼發布後的連結）');
+          }
+          throw new Error('HTTP ' + res.status);
+        }
         const ct = res.headers.get('content-type') || '';
         const body = await res.text();
         if (ct.includes('text/html') || body.trim().startsWith('<')) {
-          throw new Error('回傳非 CSV，sheet 可能未「發布到網路」');
+          throw new Error('回傳非 CSV，sheet 可能未「發布到網路」或未開放檢視');
         }
         const rows = parseCSV(body);
         const lines = rows.map(csvRowToLine);
@@ -729,7 +745,8 @@ T Part 2
         autosaveNow();
         render();
         const t = new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' });
-        setSheetStatus('已從試算表載入（' + t + '）', 'ok');
+        const note = isPublishedUrl(url) ? '' : '（建議改用發布到網路的連結以避免字串遺失）';
+        setSheetStatus('已從試算表載入（' + t + '）' + note, 'ok');
       } catch (e) {
         setSheetStatus('載入失敗：' + e.message, 'error');
       }
