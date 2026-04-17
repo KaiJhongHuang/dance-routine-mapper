@@ -56,9 +56,13 @@ T 第二段
 
 將舞序存在 Google Sheet、在 App 一鍵載入（單向：Sheet → App）。
 
-1. Google Sheet → 檔案 → 共用 → **發布到網路** → 發布（只公開檢視，不影響編輯權限）
-2. 複製 sheet 連結，在圖表產生器下方的「Google 試算表整合」面板貼上，按「儲存連結」
-3. 在 sheet 中編輯舞序，回到 App 按「從試算表載入」即可同步
+### 快速開始（用範本）
+
+1. 下載範本：[雙欄+子步法](templates/lindy-hop-template.csv) 或 [單欄簡易](templates/lindy-hop-simple.csv)
+2. 在 Google Sheets：檔案 → 匯入 → 上傳 → 選剛下載的 CSV → 匯入資料
+3. 檔案 → 共用 → **發布到網路** → 發布（只公開檢視，不影響編輯權限）
+4. 複製 sheet 連結，在圖表產生器下方的「Google 試算表整合」面板貼上，按「儲存連結」
+5. 在 sheet 中編輯舞序，回到 App 按「從試算表載入」即可同步
 
 ### Sheet 格式
 
