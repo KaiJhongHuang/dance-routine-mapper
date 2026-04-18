@@ -254,6 +254,22 @@
       font-size: 11px;
     }
 
+    /* Debug preview pane */
+    .sheet-debug {
+      margin-top: 10px;
+      padding: 10px;
+      background: #1e293b;
+      color: #e2e8f0;
+      font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+      font-size: 11px;
+      line-height: 1.5;
+      border-radius: 6px;
+      max-height: 280px;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
     /* Warning banner inside edit panel */
     .edit-warning {
       background: #fff7e6;
@@ -455,9 +471,11 @@
         <button onclick="saveSheetUrl()">儲存連結</button>
         <button onclick="openSheet()">開啟試算表</button>
         <button onclick="detectTabs()">自動偵測分頁</button>
+        <button onclick="showLastCsv()">查看原始資料</button>
         <button onclick="clearSheetUrl()">清除</button>
       </div>
       <div id="sheetStatus" class="sheet-status"></div>
+      <pre id="sheetDebug" class="sheet-debug" hidden></pre>
       <div class="sheet-help">
         <strong>使用流程：</strong><br>
         1. 在 Google Sheet 撰寫舞序（參考範本：
@@ -955,6 +973,9 @@ Title Part 2
       window.open(target, '_blank', 'noopener');
     }
 
+    let lastCsvBody = '';
+    let lastParsedText = '';
+
     async function loadFromSheet() {
       const url = sheetUrlInput.value.trim() || localStorage.getItem(SHEET_URL_KEY) || '';
       if (!url) { setSheetStatus('請先貼上 Sheet 連結', 'error'); return; }
@@ -972,22 +993,46 @@ Title Part 2
         }
         const ct = res.headers.get('content-type') || '';
         const body = await res.text();
+        lastCsvBody = body;
         if (ct.includes('text/html') || body.trim().startsWith('<')) {
           throw new Error('回傳非 CSV，sheet 可能未「發布到網路」或未開放檢視');
         }
         const rows = parseCSV(body);
         const text = csvRowsToLines(rows).join('\n');
+        lastParsedText = text;
         if (!text) throw new Error('試算表內容為空');
         inputEl.value = text;
         lastExportedContent = text;
         autosaveNow();
         render();
+        const moveCount = (text.match(/^\d+\s+/gm) || []).length;
         const t = new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' });
         const note = isPublishedUrl(url) ? '' : '（建議改用發布到網路的連結以避免字串遺失）';
-        setSheetStatus('已從試算表載入（' + t + '，gid=' + gid + '）' + note, 'ok');
+        if (moveCount === 0) {
+          setSheetStatus('已載入但解析不到動作（可能 sheet 格式不符）。按「查看原始資料」診斷。', 'error');
+        } else {
+          setSheetStatus('已從試算表載入（' + t + '，gid=' + gid + '，' + moveCount + ' 個動作）' + note, 'ok');
+        }
       } catch (e) {
         setSheetStatus('載入失敗：' + e.message, 'error');
       }
+    }
+
+    function showLastCsv() {
+      const debugEl = document.getElementById('sheetDebug');
+      if (!lastCsvBody) {
+        setSheetStatus('還沒載入過，請先按「從試算表載入」', 'error');
+        return;
+      }
+      if (!debugEl.hidden) { debugEl.hidden = true; return; }
+      const rows = parseCSV(lastCsvBody);
+      const preview = rows.slice(0, 15).map((r, i) => `[第 ${i + 1} 列] ` + r.map(c => JSON.stringify(c)).join(' | ')).join('\n');
+      const parsed = (lastParsedText || '(空)').split('\n').slice(0, 15).join('\n');
+      debugEl.textContent =
+        '=== 前 15 列原始 CSV（每格以 | 分隔）===\n' + preview +
+        (rows.length > 15 ? `\n…（共 ${rows.length} 列）` : '') +
+        '\n\n=== 解析後的前 15 行 textarea 文字 ===\n' + parsed;
+      debugEl.hidden = false;
     }
 
     // Restore saved URL (or fall back to default), render tabs
