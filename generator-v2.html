@@ -629,6 +629,7 @@ Title Part 2
     };
 
     const inputEl = document.getElementById('input');
+    const inputAreaEl = inputEl.closest('.input-area');
     const outputEl = document.getElementById('output');
     const sequenceOutputEl = document.getElementById('sequence-output');
     const saveStatusEl = document.getElementById('saveStatus');
@@ -1483,7 +1484,6 @@ Title Part 2
     });
 
     // Sticky textarea while editing — keeps input pinned to viewport bottom
-    const inputAreaEl = inputEl.closest('.input-area');
     inputEl.addEventListener('focus', () => inputAreaEl.classList.add('sticky-edit'));
     inputEl.addEventListener('blur', () => inputAreaEl.classList.remove('sticky-edit'));
 
