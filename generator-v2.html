@@ -792,22 +792,30 @@ Title Part 2
 
     // Best-effort auto-discovery of tab names + gids by parsing the sheet's
     // published HTML. Only works when the sheet is "Published to the web".
-    async function detectTabs() {
+    // When called with { silent: true } we swallow errors and skip the status
+    // updates — used for the auto-trigger on save / load / URL change so the
+    // user doesn't see a failure when they haven't published yet.
+    async function detectTabs(opts) {
+      const silent = !!(opts && opts.silent);
       const url = sheetUrlInput.value.trim() || localStorage.getItem(SHEET_URL_KEY) || '';
-      if (!url) { setSheetStatus('請先貼上 Sheet 連結', 'error'); return; }
-      const id = extractSheetId(url);
-      if (!id) { setSheetStatus('無法辨識連結', 'error'); return; }
-      if (id.kind !== 'pub') {
-        setSheetStatus('自動偵測只支援已「發布到網路」的連結（/d/e/... 格式）', 'error');
-        return;
+      if (!url) {
+        if (!silent) setSheetStatus('請先貼上 Sheet 連結', 'error');
+        return false;
       }
-      setSheetStatus('偵測分頁中…');
+      const id = extractSheetId(url);
+      if (!id) {
+        if (!silent) setSheetStatus('無法辨識連結', 'error');
+        return false;
+      }
+      if (id.kind !== 'pub') {
+        if (!silent) setSheetStatus('自動偵測只支援已「發布到網路」的連結（/d/e/... 格式）。請先發布 sheet 並改貼發布後的連結。', 'error');
+        return false;
+      }
+      if (!silent) setSheetStatus('偵測分頁中…');
       try {
         const res = await fetch(`https://docs.google.com/spreadsheets/d/e/${id.id}/pubhtml`);
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const html = await res.text();
-        // The pubhtml page embeds a sheet map we can extract. Two patterns
-        // appear in practice: sheet-menu links and a bootstrap JSON blob.
         const tabs = parseTabsFromPubhtml(html);
         if (!tabs.length) throw new Error('找不到分頁資訊');
         saveTabs(tabs);
@@ -815,9 +823,11 @@ Title Part 2
           setActiveGid(tabs[0].gid);
         }
         renderTabs();
-        setSheetStatus('偵測到 ' + tabs.length + ' 個分頁', 'ok');
+        if (!silent) setSheetStatus('偵測到 ' + tabs.length + ' 個分頁', 'ok');
+        return true;
       } catch (e) {
-        setSheetStatus('偵測失敗：' + e.message + '（可手動新增分頁）', 'error');
+        if (!silent) setSheetStatus('偵測失敗：' + e.message + '（可手動新增分頁）', 'error');
+        return false;
       }
     }
 
@@ -988,7 +998,12 @@ Title Part 2
           setActiveGid(extractGid(url) || '0');
           renderTabs();
         }
-        setSheetStatus('連結已儲存於此瀏覽器', 'ok');
+        if (isPublishedUrl(url)) {
+          setSheetStatus('連結已儲存，偵測分頁中…');
+          detectTabs({ silent: false });
+        } else {
+          setSheetStatus('連結已儲存。此為編輯連結，無法自動抓分頁；若要自動同步分頁請「發布到網路」後改貼發布連結。', 'ok');
+        }
       } catch (e) {
         setSheetStatus('儲存失敗：' + e.message, 'error');
       }
@@ -1023,6 +1038,11 @@ Title Part 2
     async function loadFromSheet() {
       const url = sheetUrlInput.value.trim() || localStorage.getItem(SHEET_URL_KEY) || '';
       if (!url) { setSheetStatus('請先貼上 Sheet 連結', 'error'); return; }
+      // For published sheets with no tabs yet, pull them in silently so the
+      // tab bar is populated on first load.
+      if (isPublishedUrl(url) && loadTabs().length === 0) {
+        await detectTabs({ silent: true });
+      }
       const gid = getActiveGid();
       const csvUrl = sheetUrlToCsvUrl(url, gid);
       if (!csvUrl) { setSheetStatus('無法辨識連結，請確認是 Google Sheet 連結', 'error'); return; }
@@ -1085,7 +1105,9 @@ Title Part 2
       debugEl.hidden = false;
     }
 
-    // Restore saved URL (or fall back to default), render tabs
+    // Restore saved URL (or fall back to default), render tabs, and for
+    // published URLs silently refresh the tab list so renames in the sheet
+    // show up without the user clicking anything.
     (function initSheetPanel() {
       let saved = null;
       try { saved = localStorage.getItem(SHEET_URL_KEY); } catch (e) {}
@@ -1095,7 +1117,19 @@ Title Part 2
         try { localStorage.setItem(SHEET_URL_KEY, DEFAULT_SHEET_URL); } catch (e) {}
       }
       renderTabs();
+      if (isPublishedUrl(url)) {
+        detectTabs({ silent: true });
+      }
     })();
+
+    // Auto-detect tabs when user pastes/edits the URL and leaves the field.
+    sheetUrlInput.addEventListener('blur', () => {
+      const url = sheetUrlInput.value.trim();
+      if (!url || !isPublishedUrl(url)) return;
+      const saved = localStorage.getItem(SHEET_URL_KEY) || '';
+      if (url === saved) return;
+      saveSheetUrl();
+    });
 
     // Load from URL: shared data takes priority, then preset, then default
     const params = new URLSearchParams(window.location.search);
