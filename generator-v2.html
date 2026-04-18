@@ -487,12 +487,12 @@
         <br>
         <strong>Sheet 格式（v2.0）：</strong>
         <ul style="margin:4px 0 0 18px; padding:0;">
-          <li>第 1 列：A 欄 = 舞序名稱（B 欄之後可填作者 / 音樂 / 備註等閱讀輔助欄，不影響解析）</li>
-          <li>段落：A 欄填 <code>Title</code>、B 欄填段落名</li>
-          <li>主動作：A 欄拍數（純數字）、B 欄動作名、C 欄之後每格一個子步法（格式 <code>拍數 名稱</code>）</li>
-          <li>子步法：不符合 <code>拍數 名稱</code> 格式的 C+ 欄位會被視為閱讀輔助欄，自動略過</li>
-          <li>空白列：保留為空行（方便分段閱讀）</li>
-          <li>其他列（如 A 欄不是 <code>Title</code>/數字）會被整列略過，可安全加備註列</li>
+          <li><strong>舞序名稱</strong> = 這個工作表分頁的名稱（分頁叫什麼，圖表標題就叫什麼）</li>
+          <li><strong>段落</strong>：A 欄寫段落名（例如 <code>第一段</code>）</li>
+          <li><strong>主動作</strong>：在一列中放入「拍數 + 動作名」配對。Parser 會掃整列，第一對 (數字格, 文字格) 就是主動作、後面的配對變子步法，中間隔幾個空白格沒關係</li>
+          <li><strong>子步法</strong>：同一列再接更多「拍數 + 名稱」配對，例如 <code>… | 6 | Send Out | | 2 | Rock | 2 | Triple | 2 | Triple</code></li>
+          <li><strong>閱讀輔助欄/列</strong>：含 <code>段落 / 項目 / 拍子 / 拍數 / 動作 / 備註</code> 等標籤字的整列自動略過；其他文字列也會被忽略</li>
+          <li><strong>空白列</strong>：保留為空行，方便分段閱讀</li>
         </ul>
       </div>
     </div>
@@ -873,53 +873,96 @@ Title Part 2
       return rows;
     }
 
+    // Header/label words we treat as decorative column titles in the sheet.
+    // A row where every non-empty cell is one of these is skipped.
+    const SHEET_HEADER_WORDS = new Set([
+      '段落', '項目', '拍子', '拍數', '動作', '子步法', '備註', '說明',
+      'Section', 'Title', 'Move', 'Moves', 'Beat', 'Beats', 'Notes', 'Sub-step', 'Sub-steps'
+    ]);
+
+    // Walk a CSV row, returning every "<int> <text>" pair found. Empty cells
+    // between the int and the text are tolerated, so a sheet that spaces
+    // groups out with blank columns still parses correctly.
+    function extractBeatNamePairs(cells) {
+      const pairs = [];
+      for (let i = 0; i < cells.length; i++) {
+        const c = cells[i] || '';
+        if (!/^\d+$/.test(c)) continue;
+        for (let j = i + 1; j < cells.length; j++) {
+          const next = cells[j] || '';
+          if (next === '') continue;
+          if (/^\d+$/.test(next)) break;
+          pairs.push({ beats: c, name: next });
+          i = j;
+          break;
+        }
+      }
+      return pairs;
+    }
+
     // Convert parsed CSV rows into textarea lines (v2.0 format).
     //
-    //   Row 0     → routine name = column A (B, C, … ignored, so user can add
-    //               reading-aid columns like author/music there)
-    //   A="Title" → section title, column B is the section name
-    //   A is int  → main move; B is the name; C… are sub-steps that match
-    //               "<beats> <name>"; non-matching cells are ignored (allows
-    //               arbitrary reading-aid columns mixed with sub-step columns)
-    //   A="", B=int, C=str → indented sub-step (v1.X CSV template compat)
-    //   blank row → blank line (preserved for readability)
-    //   else      → skipped (reading-aid rows like "備註：..." or empty A)
+    // Parsing rules (table-shaped sheets with optional header rows and
+    // reading-aid columns):
+    //   - Blank row → blank line (kept for readability)
+    //   - Row whose every non-empty cell is in SHEET_HEADER_WORDS → skipped
+    //     (covers the "段落 | 項目 | 拍子 …" label rows)
+    //   - Row containing one or more beat+name pairs → a main move. The
+    //     first pair is the main move (beats + name); additional pairs are
+    //     sub-steps joined with " + ".
+    //   - Row with text in column A but no beat+name pairs → section title
+    //     (emitted as "Title <name>"). The user's sheet labels column A as
+    //     「段落」, so A text is always a section.
+    //   - Explicit "Title" cell is also accepted for back-compat.
+    //   - Everything else → skipped (reading-aid rows).
+    //
+    // The routine name is NOT extracted here; the caller prepends the active
+    // sheet-tab name as the routine name.
     function csvRowsToLines(rows) {
       const lines = [];
-      rows.forEach((cells, rowIdx) => {
-        const trimmed = cells.map(c => (c || '').trim());
-        const a = trimmed[0] || '';
-        const b = trimmed[1] || '';
-        const c = trimmed[2] || '';
+      let anyContent = false;
 
-        if (rowIdx === 0) {
-          lines.push(a);
-          return;
+      for (const row of rows) {
+        const cells = row.map(c => (c || '').trim());
+        const nonEmpty = cells.filter(c => c !== '');
+
+        if (nonEmpty.length === 0) {
+          if (anyContent) lines.push('');
+          continue;
         }
-        if (trimmed.every(cc => cc === '')) {
-          lines.push('');
-          return;
-        }
-        if (/^(title|t)$/i.test(a)) {
-          lines.push('Title' + (b ? ' ' + b : ''));
-          return;
-        }
-        if (/^\d+$/.test(a)) {
-          const subs = trimmed.slice(2).filter(cc => /^\d+\s+\S/.test(cc));
-          if (subs.length) {
-            lines.push(`${a} ${b} = ${subs.join(' + ')}`);
-          } else {
-            lines.push(`${a}${b ? ' ' + b : ''}`);
+        if (nonEmpty.every(c => SHEET_HEADER_WORDS.has(c))) continue;
+
+        // Explicit "Title" cell (back-compat with earlier v2.0 preset format)
+        const titleIdx = cells.findIndex(c => /^title$/i.test(c));
+        if (titleIdx >= 0 && extractBeatNamePairs(cells).length === 0) {
+          let name = '';
+          for (let j = titleIdx + 1; j < cells.length; j++) {
+            if (cells[j]) { name = cells[j]; break; }
           }
-          return;
+          lines.push('Title' + (name ? ' ' + name : ''));
+          anyContent = true;
+          continue;
         }
-        // v1.X template compat: empty A, numeric B, string C → indented sub-step
-        if (a === '' && /^\d+$/.test(b) && c) {
-          lines.push(`  ${b} ${c}`);
-          return;
+
+        const pairs = extractBeatNamePairs(cells);
+        if (pairs.length > 0) {
+          const [main, ...subs] = pairs;
+          if (subs.length > 0) {
+            lines.push(`${main.beats} ${main.name} = ${subs.map(s => s.beats + ' ' + s.name).join(' + ')}`);
+          } else {
+            lines.push(`${main.beats} ${main.name}`);
+          }
+          anyContent = true;
+          continue;
         }
-        // Reading-aid row: skipped
-      });
+
+        // No beat+name pairs, but column A has text → section title
+        if (cells[0] && !SHEET_HEADER_WORDS.has(cells[0])) {
+          lines.push('Title ' + cells[0]);
+          anyContent = true;
+        }
+      }
+
       while (lines.length && lines[lines.length - 1] === '') lines.pop();
       return lines;
     }
@@ -998,7 +1041,13 @@ Title Part 2
           throw new Error('回傳非 CSV，sheet 可能未「發布到網路」或未開放檢視');
         }
         const rows = parseCSV(body);
-        const text = csvRowsToLines(rows).join('\n');
+        // Prepend the active tab's name as the routine name. The sheet body
+        // itself has no routine-name row in v2.0 layout; the tab name is
+        // the source of truth for the routine title.
+        const tab = loadTabs().find(t => String(t.gid) === String(gid));
+        const routineName = (tab && tab.name) ? tab.name : '';
+        const bodyLines = csvRowsToLines(rows);
+        const text = (routineName ? [routineName, ...bodyLines] : bodyLines).join('\n');
         lastParsedText = text;
         if (!text) throw new Error('試算表內容為空');
         inputEl.value = text;
