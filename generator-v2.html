@@ -881,17 +881,18 @@ Title Part 2
     ]);
 
     // Walk a CSV row, returning every "<int> <text>" pair found. Empty cells
-    // between the int and the text are tolerated, so a sheet that spaces
-    // groups out with blank columns still parses correctly.
+    // between the int and the name are tolerated, so a sheet that spaces
+    // groups out with blank columns still parses correctly. The name cell
+    // itself can be any non-empty string — including a numeric-looking one
+    // like "666" — so move names don't have to avoid digits.
     function extractBeatNamePairs(cells) {
       const pairs = [];
       for (let i = 0; i < cells.length; i++) {
-        const c = cells[i] || '';
+        const c = (cells[i] || '').trim();
         if (!/^\d+$/.test(c)) continue;
         for (let j = i + 1; j < cells.length; j++) {
-          const next = cells[j] || '';
+          const next = (cells[j] || '').trim();
           if (next === '') continue;
-          if (/^\d+$/.test(next)) break;
           pairs.push({ beats: c, name: next });
           i = j;
           break;
