@@ -53,6 +53,22 @@
       margin-left: 8px;
       color: #666;
     }
+    .routine-list .tag.new {
+      background: #2563eb;
+      color: #fff;
+    }
+    .routine-list .tag.stable {
+      background: #d1d5db;
+      color: #555;
+    }
+    .routine-list .desc {
+      display: block;
+      margin-top: 4px;
+      font-size: 13px;
+      font-weight: normal;
+      color: #666;
+      line-height: 1.5;
+    }
   </style>
 </head>
 <body>
@@ -62,16 +78,27 @@
 
   <p class="section-title">排舞工具</p>
   <ul class="routine-list">
-    <li><a href="generator.html" style="background:#dbeafe;">圖表產生器 <span class="tag">工具</span></a></li>
+    <li>
+      <a href="generator-v2.html" style="background:#dbeafe;">
+        圖表產生器 v2.0 <span class="tag new">最新</span>
+        <span class="desc">以 Google 試算表為主要編輯介面，支援多分頁（一個分頁 = 一支舞），即時同步</span>
+      </a>
+    </li>
+    <li>
+      <a href="generator.html">
+        圖表產生器 v1.X <span class="tag stable">穩定版</span>
+        <span class="desc">經典版本：直接在網頁文字區編輯舞序。適合已熟悉舊版流程的使用者</span>
+      </a>
+    </li>
   </ul>
 
-  <p class="section-title">經典排舞</p>
+  <p class="section-title">經典排舞（v1.X）</p>
   <ul class="routine-list">
     <li><a href="generator.html?routine=shim-sham">Shim Sham <span class="tag">4 Phases</span></a></li>
     <li><a href="generator.html?routine=big-apple">Big Apple <span class="tag">2 Phases</span></a></li>
   </ul>
 
-  <div style="margin-top:48px; padding-top:16px; border-top:1px solid #eee; font-size:12px; color:#bbb; text-align:center;">v1.0 — Kai, built with Claude Code</div>
+  <div style="margin-top:48px; padding-top:16px; border-top:1px solid #eee; font-size:12px; color:#bbb; text-align:center;">Kai, built with Claude Code</div>
 
 </body>
 </html>
