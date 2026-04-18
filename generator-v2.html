@@ -463,28 +463,52 @@
     <summary>Google 試算表整合</summary>
     <div class="panel-body">
       <input type="url" id="sheetUrlInput" placeholder="貼上 Google Sheet 連結（編輯或已發布的連結皆可）">
-      <div class="tab-bar" id="sheetTabs">
-        <span class="tab-label">分頁：</span>
-      </div>
       <div class="sheet-actions">
         <button class="primary" onclick="loadFromSheet()">從試算表載入</button>
-        <button onclick="saveSheetUrl()">儲存連結</button>
         <button onclick="openSheet()">開啟試算表</button>
-        <button onclick="detectTabs()">自動偵測分頁</button>
-        <button onclick="showLastCsv()">查看原始資料</button>
-        <button onclick="clearSheetUrl()">清除</button>
       </div>
       <div id="sheetStatus" class="sheet-status"></div>
-      <pre id="sheetDebug" class="sheet-debug" hidden></pre>
       <div class="sheet-help">
         <strong>使用流程：</strong><br>
         1. 在 Google Sheet 撰寫舞序（參考範本：
         <a href="templates/lindy-hop-template.csv" download>雙欄+子步法</a> ｜
         <a href="templates/lindy-hop-simple.csv" download>單欄簡易</a>）<br>
         2. Sheet → 檔案 → 共用 → <strong>發布到網路</strong> → 發布（僅檢視，不影響編輯權限）<br>
-        3. 把 sheet 連結貼到上面，按「儲存連結」，再按「自動偵測分頁」抓出所有工作表<br>
+        3. 把 sheet 連結貼到上面 → 自動儲存與偵測分頁<br>
         4. 每個工作表分頁 = 一支舞；點分頁鈕切換、編完按「從試算表載入」同步<br>
-        <br>
+        （進階設定與手動操作在下方「實驗區」）
+      </div>
+    </div>
+  </details>
+
+  <div class="toolbar">
+    <button id="toggleDetail" class="active" onclick="toggleDetailView()">隱藏細節</button>
+    <button onclick="shareUrl()">分享連結</button>
+    <button onclick="exportChart()">匯出圖片</button>
+    <span id="saveStatus" class="save-status"></span>
+  </div>
+  <div id="output"></div>
+
+  <div class="timing-area">
+    <span class="tpl-label">時間軸：</span>
+    <label>開始 <input type="text" id="startTime" value="0:00" oninput="render()"></label>
+    <label>BPM <input type="number" id="bpmInput" value="150" min="1" oninput="render()"></label>
+  </div>
+
+  <details class="panel-card" id="experimentPanel">
+    <summary>實驗區</summary>
+    <div class="panel-body">
+      <div class="tab-bar" id="sheetTabs">
+        <span class="tab-label">分頁：</span>
+      </div>
+      <div class="sheet-actions">
+        <button onclick="saveSheetUrl()">儲存連結</button>
+        <button onclick="detectTabs()">自動偵測分頁</button>
+        <button onclick="showLastCsv()">查看原始資料</button>
+        <button onclick="clearSheetUrl()">清除</button>
+      </div>
+      <pre id="sheetDebug" class="sheet-debug" hidden></pre>
+      <div class="sheet-help">
         <strong>Sheet 格式（v2.0）：</strong>
         <ul style="margin:4px 0 0 18px; padding:0;">
           <li><strong>舞序名稱</strong> = 這個工作表分頁的名稱（分頁叫什麼，圖表標題就叫什麼）</li>
@@ -495,6 +519,7 @@
           <li><strong>空白列</strong>：保留為空行，方便分段閱讀</li>
         </ul>
       </div>
+      <div id="sequence-output"></div>
     </div>
   </details>
 
@@ -503,7 +528,7 @@
     <div class="panel-body">
       <div class="edit-warning">
         ⚠ 此區編輯僅存在瀏覽器，<strong>不會回存到 Google 試算表</strong>。
-        修改後請自行複製貼回試算表，或用「分享連結」備份。
+        修改後請自行複製貼回試算表保存。
         下次按「從試算表載入」會直接覆蓋這裡的內容。
       </div>
       <div class="help">
@@ -536,20 +561,6 @@
       </div>
     </div>
   </details>
-
-  <div class="toolbar">
-    <button id="toggleDetail" class="active" onclick="toggleDetailView()">隱藏細節</button>
-    <button onclick="shareUrl()">分享連結</button>
-    <button onclick="exportChart()">匯出圖片</button>
-    <span id="saveStatus" class="save-status"></span>
-  </div>
-  <div id="output"></div>
-
-  <div class="timing-area">
-    <span class="tpl-label">時間軸：</span>
-    <label>開始 <input type="text" id="startTime" value="0:00" oninput="render()"></label>
-    <label>BPM <input type="number" id="bpmInput" value="150" min="1" oninput="render()"></label>
-  </div>
 
   <div class="footer">v2.0 — Kai, built with Claude Code ｜ <a href="https://forms.gle/X1pvyDiYAPpw9otMA" target="_blank">許願 & 回報 Bug</a></div>
 
@@ -619,6 +630,7 @@ Title Part 2
 
     const inputEl = document.getElementById('input');
     const outputEl = document.getElementById('output');
+    const sequenceOutputEl = document.getElementById('sequence-output');
     const saveStatusEl = document.getElementById('saveStatus');
 
     // --- Draft autosave + unsaved-change protection ---
@@ -1105,20 +1117,39 @@ Title Part 2
       debugEl.hidden = false;
     }
 
-    // Restore saved URL (or fall back to default), render tabs, and for
-    // published URLs silently refresh the tab list so renames in the sheet
-    // show up without the user clicking anything.
+    // Restore URL in this priority:
+    //   1. ?sheet=... query param (from a share URL) — also persisted
+    //   2. localStorage drm:sheet-url
+    //   3. DEFAULT_SHEET_URL
+    // For published URLs, kick off silent tab detection so the tab bar
+    // reflects the sheet without the user clicking anything. A ?sheet=
+    // param additionally triggers an immediate load so that a share URL
+    // shows the chart on arrival.
+    const sheetFromQuery = (() => {
+      const p = new URLSearchParams(window.location.search);
+      const s = p.get('sheet');
+      const g = p.get('gid');
+      if (s) {
+        if (g && /^[0-9]+$/.test(g)) setActiveGid(g);
+        try { localStorage.setItem(SHEET_URL_KEY, s); } catch (e) {}
+        return s;
+      }
+      return null;
+    })();
+
     (function initSheetPanel() {
       let saved = null;
       try { saved = localStorage.getItem(SHEET_URL_KEY); } catch (e) {}
-      const url = saved || DEFAULT_SHEET_URL;
+      const url = sheetFromQuery || saved || DEFAULT_SHEET_URL;
       sheetUrlInput.value = url;
-      if (!saved) {
+      if (!saved && !sheetFromQuery) {
         try { localStorage.setItem(SHEET_URL_KEY, DEFAULT_SHEET_URL); } catch (e) {}
       }
       renderTabs();
       if (isPublishedUrl(url)) {
-        detectTabs({ silent: true });
+        detectTabs({ silent: true }).then(() => {
+          if (sheetFromQuery) loadFromSheet();
+        });
       }
     })();
 
@@ -1141,28 +1172,22 @@ Title Part 2
       document.title = TITLES[routine].title + ' — 排舞圖表';
     }
 
-    // Load order: URL share data > local draft > preset > default
-    (async function loadInput() {
-      const compressed = params.get('d');
-      const legacyData = params.get('data');
+    // v2.0: routine text comes from the sheet (via initSheetPanel auto-load
+    // when a ?sheet= param is present). Otherwise fall back to the local
+    // draft or a preset so the chart isn't empty on first visit.
+    // The legacy compressed ?d= / ?data= share formats are not handled
+    // here — v1.X (generator.html) continues to support them.
+    (function loadInput() {
+      if (sheetFromQuery) return; // sheet auto-load in initSheetPanel handles it
       let loaded = null;
       let fromLocalDraft = false;
-
-      if (compressed) {
-        try { loaded = await decompress(compressed); } catch(e) {}
-      } else if (legacyData) {
-        try { loaded = decodeURIComponent(atob(legacyData)); } catch(e) {}
-      }
-      if (loaded === null) {
-        try {
-          const draft = localStorage.getItem(STORAGE_KEY);
-          if (draft) { loaded = draft; fromLocalDraft = true; }
-        } catch(e) {}
-      }
+      try {
+        const draft = localStorage.getItem(STORAGE_KEY);
+        if (draft) { loaded = draft; fromLocalDraft = true; }
+      } catch (e) {}
       if (loaded === null) {
         loaded = PRESETS[routine] || PRESETS['default'];
       }
-
       inputEl.value = loaded;
       lastExportedContent = loaded;
       if (fromLocalDraft) {
@@ -1230,12 +1255,27 @@ Title Part 2
       return new TextDecoder().decode(new Uint8Array(chunks.reduce((a, c) => { const r = new Uint8Array(a.length + c.length); r.set(a); r.set(c, a.length); return r; }, new Uint8Array())));
     }
 
+    // v2.0: share URL carries only the sheet link + active gid, NOT the
+    // routine itself. The receiver's app re-fetches from the sheet, so they
+    // always see the latest data instead of a snapshot.
     async function shareUrl() {
-      const encoded = await compress(inputEl.value);
-      const url = location.origin + location.pathname + '?d=' + encoded;
-      await navigator.clipboard.writeText(url);
+      const sheetUrl = (sheetUrlInput.value.trim() || localStorage.getItem(SHEET_URL_KEY) || '');
+      if (!sheetUrl) {
+        setSaveStatus('尚未設定試算表連結', 'unsaved');
+        return;
+      }
+      const gid = getActiveGid();
+      const params = new URLSearchParams();
+      params.set('sheet', sheetUrl);
+      if (gid) params.set('gid', gid);
+      const url = location.origin + location.pathname + '?' + params.toString();
+      try {
+        await navigator.clipboard.writeText(url);
+      } catch (e) {
+        // Clipboard may fail silently on some browsers; status still updates
+      }
       lastExportedContent = inputEl.value;
-      setSaveStatus('已產生分享連結', 'saved');
+      setSaveStatus('已複製分享連結（含試算表連結）', 'saved');
       const btn = event.target;
       btn.textContent = '已複製連結';
       setTimeout(() => { btn.textContent = '分享連結'; }, 1500);
@@ -1696,6 +1736,7 @@ Title Part 2
       const { phases, phaseNames, routineName } = parseMoves(inputEl.value);
       if (!phases.length) {
         outputEl.innerHTML = '';
+        if (sequenceOutputEl) sequenceOutputEl.innerHTML = '';
         return;
       }
 
@@ -1745,10 +1786,8 @@ Title Part 2
         beatOffset += phaseBeats;
       });
 
-      let html = `<div id="chart-area">${tableHtml}<p class="note">同色 = 同一個動作 ｜ ↓ = 動作跨越 8 拍邊界延續</p></div>`;
-      html += seqHtml;
-
-      outputEl.innerHTML = html;
+      outputEl.innerHTML = `<div id="chart-area">${tableHtml}<p class="note">同色 = 同一個動作 ｜ ↓ = 動作跨越 8 拍邊界延續</p></div>`;
+      if (sequenceOutputEl) sequenceOutputEl.innerHTML = seqHtml;
 
       // Scroll anchor: restore the textarea's relative viewport position.
       // Skipped while sticky-editing, since the textarea is already pinned.
