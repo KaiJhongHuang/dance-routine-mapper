@@ -509,6 +509,9 @@
         <button onclick="showLastCsv()">查看原始資料</button>
         <button onclick="clearSheetUrl()">清除</button>
       </div>
+      <label class="sheet-opt" style="display:block; margin-top:8px; font-size:13px; color:#555;">
+        <input type="checkbox" id="autoLoadToggle" onchange="toggleAutoLoad()"> 開啟頁面時自動從試算表載入
+      </label>
       <pre id="sheetDebug" class="sheet-debug" hidden></pre>
       <div class="sheet-help">
         <strong>Sheet 格式（v2.0）：</strong>
@@ -694,6 +697,22 @@ Title Part 2
     const SHEET_URL_KEY = 'drm:sheet-url';
     const SHEET_TABS_KEY = 'drm:sheet-tabs';
     const SHEET_ACTIVE_GID_KEY = 'drm:sheet-active-gid';
+    const SHEET_AUTOLOAD_KEY = 'drm:sheet-autoload';
+
+    function getAutoLoad() {
+      try {
+        const v = localStorage.getItem(SHEET_AUTOLOAD_KEY);
+        if (v === null) return true; // default: on
+        return v === '1';
+      } catch (e) { return true; }
+    }
+    function setAutoLoad(on) {
+      try { localStorage.setItem(SHEET_AUTOLOAD_KEY, on ? '1' : '0'); } catch (e) {}
+    }
+    function toggleAutoLoad() {
+      const el = document.getElementById('autoLoadToggle');
+      setAutoLoad(el.checked);
+    }
     const DEFAULT_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1C8lRtNYPcp5YstFur6KwGF83W1sYPq9YCRA45TWQ2fI/edit?usp=sharing';
     const sheetUrlInput = document.getElementById('sheetUrlInput');
     const sheetStatusEl = document.getElementById('sheetStatus');
@@ -1165,10 +1184,12 @@ Title Part 2
       if (!saved && !sheetFromQuery) {
         try { localStorage.setItem(SHEET_URL_KEY, DEFAULT_SHEET_URL); } catch (e) {}
       }
+      const autoLoadEl = document.getElementById('autoLoadToggle');
+      if (autoLoadEl) autoLoadEl.checked = getAutoLoad();
       renderTabs();
       if (isPublishedUrl(url)) {
         detectTabs({ silent: true }).then(() => {
-          if (sheetFromQuery) loadFromSheet();
+          if (sheetFromQuery || getAutoLoad()) loadFromSheet();
         });
       }
     })();
