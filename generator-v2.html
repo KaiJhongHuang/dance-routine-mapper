@@ -1374,21 +1374,46 @@ Title Part 2
 
     async function exportChart() {
       const chartArea = document.getElementById('chart-area');
-      if (!chartArea) return;
-      const canvas = await html2canvas(chartArea, { backgroundColor: '#ffffff', scale: 2 });
-      canvas.toBlob(async (blob) => {
+      if (!chartArea) {
+        setSaveStatus('沒有可匯出的圖表', 'unsaved');
+        return;
+      }
+      if (typeof html2canvas !== 'function') {
+        setSaveStatus('html2canvas 未載入，請檢查網路連線後重新整理', 'unsaved');
+        return;
+      }
+      setSaveStatus('產生圖片中…', '');
+      try {
+        const canvas = await html2canvas(chartArea, { backgroundColor: '#ffffff', scale: 2 });
+        const blob = await new Promise((resolve, reject) => {
+          canvas.toBlob(b => b ? resolve(b) : reject(new Error('toBlob returned null')), 'image/png');
+        });
         const file = new File([blob], 'dance-chart.png', { type: 'image/png' });
         if (navigator.canShare && navigator.canShare({ files: [file] })) {
-          await navigator.share({ files: [file] });
+          try {
+            await navigator.share({ files: [file] });
+            setSaveStatus('已開啟分享', 'saved');
+          } catch (err) {
+            if (err && err.name === 'AbortError') {
+              setSaveStatus('', '');
+            } else {
+              throw err;
+            }
+          }
         } else {
-          // Fallback: download
           const a = document.createElement('a');
           a.href = URL.createObjectURL(blob);
           a.download = 'dance-chart.png';
+          document.body.appendChild(a);
           a.click();
-          URL.revokeObjectURL(a.href);
+          a.remove();
+          setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+          setSaveStatus('已下載 dance-chart.png', 'saved');
         }
-      }, 'image/png');
+      } catch (e) {
+        setSaveStatus('匯出失敗：' + (e && e.message ? e.message : e), 'unsaved');
+        console.error('exportChart failed:', e);
+      }
     }
 
     // === Quick Templates ===
