@@ -483,6 +483,7 @@
 
   <div class="toolbar">
     <button id="toggleDetail" class="active" onclick="toggleDetailView()">隱藏細節</button>
+    <button id="toggleMatch" onclick="toggleMatchColors()">同名同色</button>
     <button onclick="shareUrl()">分享連結</button>
     <button onclick="exportChart()">匯出圖片</button>
     <span id="saveStatus" class="save-status"></span>
@@ -568,6 +569,22 @@
     const COLORS = ['c1','c2','c3','c4','c5','c6','c7','c8'];
 
     let showDetail = true;
+    let matchColors = false;
+
+    function createColorResolver() {
+      const map = new Map();
+      let next = 0;
+      return function(name, fallbackIdx) {
+        if (!matchColors) return fallbackIdx % COLORS.length;
+        const key = (name || '').trim().toLowerCase();
+        if (!key) return fallbackIdx % COLORS.length;
+        if (!map.has(key)) {
+          map.set(key, next % COLORS.length);
+          next++;
+        }
+        return map.get(key);
+      };
+    }
 
     const PRESETS = {
       default: `Lindy Hop 基本組合
@@ -1205,6 +1222,13 @@ Title Part 2
       render();
     }
 
+    function toggleMatchColors() {
+      matchColors = !matchColors;
+      const btn = document.getElementById('toggleMatch');
+      btn.classList.toggle('active', matchColors);
+      render();
+    }
+
     function copyText() {
       navigator.clipboard.writeText(inputEl.value).then(() => {
         lastExportedContent = inputEl.value;
@@ -1564,7 +1588,8 @@ Title Part 2
       return { phases, phaseNames, routineName };
     }
 
-    function buildTable(moves, eightCountOffset) {
+    function buildTable(moves, eightCountOffset, resolveColor) {
+      const colorFor = resolveColor || ((name, idx) => idx % COLORS.length);
       // Build main segments (always based on full moves)
       const segments = [];
       let beat = 0;
@@ -1573,7 +1598,7 @@ Title Part 2
           start: beat,
           end: beat + mv.count,
           name: mv.name,
-          colorIdx: i % COLORS.length,
+          colorIdx: colorFor(mv.name, i),
           subSteps: mv.subSteps || null
         });
         beat += mv.count;
@@ -1592,7 +1617,7 @@ Title Part 2
                 start: sBeat,
                 end: sBeat + sub.count,
                 name: sub.name,
-                colorIdx: i % COLORS.length
+                colorIdx: colorFor(sub.name, i)
               });
               sBeat += sub.count;
             });
@@ -1602,7 +1627,7 @@ Title Part 2
               start: sBeat,
               end: sBeat + mv.count,
               name: null,
-              colorIdx: i % COLORS.length
+              colorIdx: colorFor(mv.name, i)
             });
             sBeat += mv.count;
           }
@@ -1753,6 +1778,7 @@ Title Part 2
       let seqHtml = '';
       let offset = 0;
       let beatOffset = 0;
+      const resolveColor = createColorResolver();
 
       phases.forEach((moves, pi) => {
         const name = phaseNames[pi];
@@ -1770,7 +1796,7 @@ Title Part 2
         if (phaseLabel) {
           tableHtml += `<h2>${phaseLabel}${timeTag}</h2>`;
         }
-        const result = buildTable(moves, offset);
+        const result = buildTable(moves, offset, resolveColor);
         tableHtml += result.html;
         offset += result.totalEights;
 
