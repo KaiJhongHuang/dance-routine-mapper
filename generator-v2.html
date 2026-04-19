@@ -491,7 +491,7 @@
   </div>
   <div id="output"></div>
 
-  <div class="timing-area">
+  <div class="timing-area" id="timingArea" style="display:none;">
     <span class="tpl-label">時間軸：</span>
     <label>開始 <input type="text" id="startTime" value="0:00" oninput="render()"></label>
     <label>BPM <input type="number" id="bpmInput" value="150" min="1" oninput="render()"></label>
@@ -508,6 +508,7 @@
         <button onclick="detectTabs()">自動偵測分頁</button>
         <button onclick="showLastCsv()">查看原始資料</button>
         <button onclick="clearSheetUrl()">清除</button>
+        <button id="toggleTiming" onclick="toggleTimingView()">顯示時間軸</button>
       </div>
       <label class="sheet-opt" style="display:block; margin-top:8px; font-size:13px; color:#555;">
         <input type="checkbox" id="autoLoadToggle" onchange="toggleAutoLoad()"> 開啟頁面時自動從試算表載入
@@ -575,6 +576,10 @@
     let showDetail = true;
     let showParent = true;
     let matchColors = true;
+    const SHOW_TIMING_KEY = 'drm:show-timing';
+    let showTiming = (() => {
+      try { return localStorage.getItem(SHOW_TIMING_KEY) === '1'; } catch (e) { return false; }
+    })();
 
     function createColorResolver() {
       const map = new Map();
@@ -1186,6 +1191,7 @@ Title Part 2
       }
       const autoLoadEl = document.getElementById('autoLoadToggle');
       if (autoLoadEl) autoLoadEl.checked = getAutoLoad();
+      refreshTimingUI();
       renderTabs();
       if (isPublishedUrl(url)) {
         detectTabs({ silent: true }).then(() => {
@@ -1258,6 +1264,23 @@ Title Part 2
       detailBtn.textContent = showDetail ? '隱藏細節' : '顯示細節';
       parentBtn.classList.toggle('active', showParent);
       parentBtn.textContent = showParent ? '隱藏標題' : '顯示標題';
+    }
+
+    function toggleTimingView() {
+      showTiming = !showTiming;
+      try { localStorage.setItem(SHOW_TIMING_KEY, showTiming ? '1' : '0'); } catch (e) {}
+      refreshTimingUI();
+      render();
+    }
+
+    function refreshTimingUI() {
+      const btn = document.getElementById('toggleTiming');
+      const area = document.getElementById('timingArea');
+      if (btn) {
+        btn.classList.toggle('active', showTiming);
+        btn.textContent = showTiming ? '隱藏時間軸' : '顯示時間軸';
+      }
+      if (area) area.style.display = showTiming ? '' : 'none';
     }
 
     function toggleMatchColors() {
@@ -1833,7 +1856,7 @@ Title Part 2
       // Timing calculation
       const startSec = parseTime(document.getElementById('startTime').value);
       const bpm = parseFloat(document.getElementById('bpmInput').value);
-      const hasTiming = startSec !== null && bpm > 0;
+      const hasTiming = showTiming && startSec !== null && bpm > 0;
       const secPerBeat = hasTiming ? 60 / bpm : 0;
 
       let tableHtml = '';
