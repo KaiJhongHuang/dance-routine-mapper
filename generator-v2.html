@@ -468,16 +468,6 @@
         <button onclick="openSheet()">開啟試算表</button>
       </div>
       <div id="sheetStatus" class="sheet-status"></div>
-      <div class="sheet-help">
-        <strong>使用流程：</strong><br>
-        1. 在 Google Sheet 撰寫舞序（參考範本：
-        <a href="templates/lindy-hop-template.csv" download>雙欄+子步法</a> ｜
-        <a href="templates/lindy-hop-simple.csv" download>單欄簡易</a>）<br>
-        2. Sheet → 檔案 → 共用 → <strong>發布到網路</strong> → 發布（僅檢視，不影響編輯權限）<br>
-        3. 把 sheet 連結貼到上面 → 自動儲存與偵測分頁<br>
-        4. 每個工作表分頁 = 一支舞；點分頁鈕切換、編完按「從試算表載入」同步<br>
-        （進階設定與手動操作在下方「實驗區」）
-      </div>
     </div>
   </details>
 
@@ -500,6 +490,15 @@
   <details class="panel-card" id="experimentPanel">
     <summary>實驗區</summary>
     <div class="panel-body">
+      <div class="sheet-help">
+        <strong>使用流程：</strong><br>
+        1. 在 Google Sheet 撰寫舞序（參考範本：
+        <a href="templates/lindy-hop-template.csv" download>雙欄+子步法</a> ｜
+        <a href="templates/lindy-hop-simple.csv" download>單欄簡易</a>）<br>
+        2. Sheet → 檔案 → 共用 → <strong>發布到網路</strong> → 發布（僅檢視，不影響編輯權限）<br>
+        3. 把 sheet 連結貼到上面 → 自動儲存與偵測分頁<br>
+        4. 每個工作表分頁 = 一支舞；點分頁鈕切換、編完按「從試算表載入」同步
+      </div>
       <div class="tab-bar" id="sheetTabs">
         <span class="tab-label">分頁：</span>
       </div>
