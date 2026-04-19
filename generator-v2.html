@@ -1585,7 +1585,25 @@ Title Part 2
         phases.push(current);
         phaseNames.push(currentName);
       }
-      return { phases, phaseNames, routineName };
+      return { phases: phases.map(flattenEmptyParents), phaseNames, routineName };
+    }
+
+    // A parent move with no name but with sub-steps means "show only the
+    // sub-steps as main moves" — expand them so the chart has no parent row
+    // for that group.
+    function flattenEmptyParents(moves) {
+      const out = [];
+      for (const mv of moves) {
+        const hasName = mv.name && mv.name.trim();
+        if (!hasName && mv.subSteps && mv.subSteps.length) {
+          for (const sub of mv.subSteps) {
+            out.push({ count: sub.count, name: sub.name });
+          }
+        } else {
+          out.push(mv);
+        }
+      }
+      return out;
     }
 
     function buildTable(moves, eightCountOffset, resolveColor) {
