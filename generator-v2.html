@@ -1389,18 +1389,7 @@ Title Part 2
           canvas.toBlob(b => b ? resolve(b) : reject(new Error('toBlob returned null')), 'image/png');
         });
         const file = new File([blob], 'dance-chart.png', { type: 'image/png' });
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-          try {
-            await navigator.share({ files: [file] });
-            setSaveStatus('已開啟分享', 'saved');
-          } catch (err) {
-            if (err && err.name === 'AbortError') {
-              setSaveStatus('', '');
-            } else {
-              throw err;
-            }
-          }
-        } else {
+        const downloadBlob = () => {
           const a = document.createElement('a');
           a.href = URL.createObjectURL(blob);
           a.download = 'dance-chart.png';
@@ -1409,7 +1398,25 @@ Title Part 2
           a.remove();
           setTimeout(() => URL.revokeObjectURL(a.href), 1000);
           setSaveStatus('已下載 dance-chart.png', 'saved');
+        };
+
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          try {
+            await navigator.share({ files: [file] });
+            setSaveStatus('已開啟分享', 'saved');
+            return;
+          } catch (err) {
+            if (err && err.name === 'AbortError') {
+              setSaveStatus('', '');
+              return;
+            }
+            // Platform said canShare, then refused at share() time (common
+            // on desktop Chromium where file sharing isn't wired up). Fall
+            // through to the plain download.
+            console.warn('navigator.share failed, falling back to download:', err);
+          }
         }
+        downloadBlob();
       } catch (e) {
         setSaveStatus('匯出失敗：' + (e && e.message ? e.message : e), 'unsaved');
         console.error('exportChart failed:', e);
