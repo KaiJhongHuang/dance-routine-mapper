@@ -484,7 +484,7 @@
   <div class="toolbar">
     <button id="toggleDetail" class="active" onclick="toggleDetailView()">隱藏細節</button>
     <button id="toggleParent" class="active" onclick="toggleParentView()">隱藏標題</button>
-    <button id="toggleMatch" onclick="toggleMatchColors()">同名同色</button>
+    <button id="toggleMatch" class="active" onclick="toggleMatchColors()">同名同色</button>
     <button onclick="shareUrl()">分享連結</button>
     <button onclick="exportChart()">匯出圖片</button>
     <span id="saveStatus" class="save-status"></span>
@@ -571,7 +571,7 @@
 
     let showDetail = true;
     let showParent = true;
-    let matchColors = false;
+    let matchColors = true;
 
     function createColorResolver() {
       const map = new Map();
