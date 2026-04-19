@@ -1192,10 +1192,16 @@ Title Part 2
       if (autoLoadEl) autoLoadEl.checked = getAutoLoad();
       refreshTimingUI();
       renderTabs();
+      const shouldAutoLoad = sheetFromQuery || getAutoLoad();
       if (isPublishedUrl(url)) {
         detectTabs({ silent: true }).then(() => {
-          if (sheetFromQuery || getAutoLoad()) loadFromSheet();
+          if (shouldAutoLoad) loadFromSheet();
         });
+      } else if (shouldAutoLoad) {
+        // Edit-style URL: no tab-detection, but we can still pull the CSV
+        // (works via gviz). A ?sheet= share link lands here when the user
+        // pastes the /edit link instead of a /pub link.
+        loadFromSheet();
       }
     })();
 
