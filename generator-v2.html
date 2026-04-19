@@ -483,6 +483,7 @@
 
   <div class="toolbar">
     <button id="toggleDetail" class="active" onclick="toggleDetailView()">隱藏細節</button>
+    <button id="toggleParent" class="active" onclick="toggleParentView()">隱藏標題</button>
     <button id="toggleMatch" onclick="toggleMatchColors()">同名同色</button>
     <button onclick="shareUrl()">分享連結</button>
     <button onclick="exportChart()">匯出圖片</button>
@@ -569,6 +570,7 @@
     const COLORS = ['c1','c2','c3','c4','c5','c6','c7','c8'];
 
     let showDetail = true;
+    let showParent = true;
     let matchColors = false;
 
     function createColorResolver() {
@@ -1216,10 +1218,25 @@ Title Part 2
 
     function toggleDetailView() {
       showDetail = !showDetail;
-      const btn = document.getElementById('toggleDetail');
-      btn.classList.toggle('active', showDetail);
-      btn.textContent = showDetail ? '隱藏細節' : '顯示細節';
+      if (!showDetail) showParent = true; // prevent hiding everything
+      refreshRowToggleUI();
       render();
+    }
+
+    function toggleParentView() {
+      showParent = !showParent;
+      if (!showParent) showDetail = true; // prevent hiding everything
+      refreshRowToggleUI();
+      render();
+    }
+
+    function refreshRowToggleUI() {
+      const detailBtn = document.getElementById('toggleDetail');
+      const parentBtn = document.getElementById('toggleParent');
+      detailBtn.classList.toggle('active', showDetail);
+      detailBtn.textContent = showDetail ? '隱藏細節' : '顯示細節';
+      parentBtn.classList.toggle('active', showParent);
+      parentBtn.textContent = showParent ? '隱藏標題' : '顯示標題';
     }
 
     function toggleMatchColors() {
@@ -1566,9 +1583,21 @@ Title Part 2
             .filter(Boolean)
             .map(s => {
               const mm = s.match(MOVE_RE);
-              return mm ? { count: parseInt(mm[1]), name: mm[2].trim() } : null;
+              if (mm) return { count: parseInt(mm[1]), name: mm[2].trim() };
+              const nn = s.match(/^(\d+)$/);
+              if (nn) return { count: parseInt(nn[1]), name: '' };
+              return null;
             })
             .filter(Boolean);
+          // If the text between the count and "=" is only a number (no name),
+          // treat it as an unnamed leading sub-step and leave the parent name
+          // empty, e.g. "6 2 = 2 Triple + 2 Triple" →
+          // parent "" with subs [2 (unnamed), 2 Triple, 2 Triple].
+          const numOnly = name.match(/^(\d+)$/);
+          if (numOnly) {
+            inlineSubs.unshift({ count: parseInt(numOnly[1]), name: '' });
+            name = '';
+          }
         }
 
         if (isIndented) {
@@ -1585,25 +1614,7 @@ Title Part 2
         phases.push(current);
         phaseNames.push(currentName);
       }
-      return { phases: phases.map(flattenEmptyParents), phaseNames, routineName };
-    }
-
-    // A parent move with no name but with sub-steps means "show only the
-    // sub-steps as main moves" — expand them so the chart has no parent row
-    // for that group.
-    function flattenEmptyParents(moves) {
-      const out = [];
-      for (const mv of moves) {
-        const hasName = mv.name && mv.name.trim();
-        if (!hasName && mv.subSteps && mv.subSteps.length) {
-          for (const sub of mv.subSteps) {
-            out.push({ count: sub.count, name: sub.name });
-          }
-        } else {
-          out.push(mv);
-        }
-      }
-      return out;
+      return { phases, phaseNames, routineName };
     }
 
     function buildTable(moves, eightCountOffset, resolveColor) {
@@ -1639,6 +1650,16 @@ Title Part 2
               });
               sBeat += sub.count;
             });
+          } else if (!showParent) {
+            // Parent row hidden and no sub-steps: promote the parent into the
+            // sub row so the move is still visible.
+            subSegments.push({
+              start: sBeat,
+              end: sBeat + mv.count,
+              name: mv.name,
+              colorIdx: colorFor(mv.name, i)
+            });
+            sBeat += mv.count;
           } else {
             // No sub-steps: single empty segment to keep alignment
             subSegments.push({
@@ -1652,6 +1673,8 @@ Title Part 2
         });
       }
 
+      const hasName = v => v != null && String(v).trim() !== '';
+
       let html = '<table><colgroup><col style="width:50px"><col span="8"></colgroup>';
       html += '<thead><tr><th>8拍</th>';
       for (let c = 1; c <= 8; c++) html += `<th>${c}</th>`;
@@ -1661,53 +1684,58 @@ Title Part 2
         const rowStart = row * 8;
         const rowEnd = rowStart + 8;
 
-        // Check if any segment in this row has sub-steps
-        const hasDetailRow = showDetail && segments.some(s =>
+        const hasSubsInRow = segments.some(s =>
           s.start < rowEnd && s.end > rowStart && s.subSteps && s.subSteps.length
         );
+        const mainVisible = showParent;
+        const subVisible = showDetail && (!showParent || hasSubsInRow);
+        const bothVisible = mainVisible && subVisible;
+        const rowspan = (mainVisible ? 1 : 0) + (subVisible ? 1 : 0);
+        const labelHtml = `<td class="label" rowspan="${rowspan}">${row + 1 + eightCountOffset}</td>`;
+        let labelUsed = false;
 
-        // Main row
-        const rowspan = hasDetailRow ? 2 : 1;
-        html += `<tr><td class="label" rowspan="${rowspan}">${row + 1 + eightCountOffset}</td>`;
+        if (mainVisible) {
+          html += '<tr>' + labelHtml;
+          labelUsed = true;
 
-        let col = rowStart;
-        while (col < rowEnd) {
-          const seg = segments.find(s => s.start <= col && col < s.end);
-          if (!seg) {
-            html += `<td${hasDetailRow ? ' class="main-row"' : ''}></td>`;
-            col++;
-            continue;
+          let col = rowStart;
+          while (col < rowEnd) {
+            const seg = segments.find(s => s.start <= col && col < s.end);
+            if (!seg) {
+              html += `<td${bothVisible ? ' class="main-row"' : ''}></td>`;
+              col++;
+              continue;
+            }
+
+            const segEndInRow = Math.min(seg.end, rowEnd);
+            const colspan = segEndInRow - col;
+            const cellHasName = hasName(seg.name);
+            const colorCls = cellHasName ? COLORS[seg.colorIdx] : '';
+
+            let label = '';
+            const startsHere = seg.start === col;
+            const endsHere = seg.end <= rowEnd;
+            const startedBefore = seg.start < rowStart;
+            const continuesAfter = seg.end > rowEnd;
+
+            if (cellHasName) {
+              if (startsHere && endsHere) label = seg.name;
+              else if (startsHere && continuesAfter) label = seg.name + ' ↓';
+              else if (startedBefore && endsHere) label = '↓ ' + seg.name;
+              else if (startedBefore && continuesAfter) label = '↓ ' + seg.name + ' ↓';
+            }
+
+            const classes = [colorCls, bothVisible ? 'main-row' : ''].filter(Boolean).join(' ');
+            html += `<td${classes ? ` class="${classes}"` : ''} colspan="${colspan}">${label}</td>`;
+            col += colspan;
           }
-
-          const segEndInRow = Math.min(seg.end, rowEnd);
-          const colspan = segEndInRow - col;
-          const cls = COLORS[seg.colorIdx];
-
-          let label = '';
-          const startsHere = seg.start === col;
-          const endsHere = seg.end <= rowEnd;
-          const startedBefore = seg.start < rowStart;
-          const continuesAfter = seg.end > rowEnd;
-
-          if (startsHere && endsHere) {
-            label = seg.name;
-          } else if (startsHere && continuesAfter) {
-            label = seg.name + ' ↓';
-          } else if (startedBefore && endsHere) {
-            label = '↓ ' + seg.name;
-          } else if (startedBefore && continuesAfter) {
-            label = '↓ ' + seg.name + ' ↓';
-          }
-
-          const extraCls = hasDetailRow ? ' main-row' : '';
-          html += `<td class="${cls}${extraCls}" colspan="${colspan}">${label}</td>`;
-          col += colspan;
+          html += '</tr>';
         }
-        html += '</tr>';
 
-        // Detail row (sub-steps)
-        if (hasDetailRow) {
+        if (subVisible) {
           html += '<tr>';
+          if (!labelUsed) html += labelHtml;
+
           let subCol = rowStart;
           while (subCol < rowEnd) {
             const sub = subSegments.find(s => s.start <= subCol && subCol < s.end);
@@ -1719,13 +1747,11 @@ Title Part 2
 
             const subEndInRow = Math.min(sub.end, rowEnd);
             const colspan = subEndInRow - subCol;
-            const cls = COLORS[sub.colorIdx];
+            const cellHasName = hasName(sub.name);
+            const colorCls = cellHasName ? COLORS[sub.colorIdx] : '';
+            const classes = [colorCls, 'sub-row'].filter(Boolean).join(' ');
 
-            if (sub.name) {
-              html += `<td class="${cls} sub-row" colspan="${colspan}">${sub.name}</td>`;
-            } else {
-              html += `<td class="${cls} sub-row" colspan="${colspan}"></td>`;
-            }
+            html += `<td class="${classes}" colspan="${colspan}">${cellHasName ? sub.name : ''}</td>`;
             subCol += colspan;
           }
           html += '</tr>';
