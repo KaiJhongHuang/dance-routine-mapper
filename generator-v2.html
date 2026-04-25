@@ -733,16 +733,18 @@ Title Part 2
       return m ? m[1] : '0';
     }
 
+    // Accept the optional /u/N/ account selector that Google injects when
+    // copying a URL while signed in (e.g. /spreadsheets/u/0/d/...).
     function extractSheetId(url) {
-      let m = url.match(/\/spreadsheets\/d\/e\/([^\/?#]+)/);
+      let m = url.match(/\/spreadsheets\/(?:u\/\d+\/)?d\/e\/([^\/?#]+)/);
       if (m) return { kind: 'pub', id: m[1] };
-      m = url.match(/\/spreadsheets\/d\/([^\/?#]+)/);
+      m = url.match(/\/spreadsheets\/(?:u\/\d+\/)?d\/([^\/?#]+)/);
       if (m) return { kind: 'edit', id: m[1] };
       return null;
     }
 
     function isPublishedUrl(url) {
-      return /\/spreadsheets\/d\/e\//.test(url || '');
+      return /\/spreadsheets\/(?:u\/\d+\/)?d\/e\//.test(url || '');
     }
 
     // Convert a Google Sheet URL + gid to a public CSV endpoint.
